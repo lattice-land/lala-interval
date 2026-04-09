@@ -1,7 +1,7 @@
 // Copyright 2026 Pierre Talbot
 
-#ifndef LALA_INTERVAL_ZLB_HPP
-#define LALA_INTERVAL_ZLB_HPP
+#ifndef LALA_INTERVAL_LB_HPP
+#define LALA_INTERVAL_LB_HPP
 
 #include <type_traits>
 #include <utility>
@@ -12,20 +12,20 @@
 namespace lala {
 
 template<class VT, class Mem = battery::local_memory>
-class ZLB
+class LB
 {
 public:
   using value_type = VT;
   using memory_type = Mem;
-  using this_type = ZLB<value_type, memory_type>;
-  using basic_type = ZLB<value_type>;
+  using this_type = LB<value_type, memory_type>;
+  using basic_type = LB<value_type>;
   using atomic_type = memory_type::template atomic_type<value_type>;
 
   template<class VT2, class Mem2>
-  friend class ZLB;
+  friend class LB;
 
   constexpr static const bool is_totally_ordered = true;
-  constexpr static const char* name = "ZLB";
+  constexpr static const char* name = "LB";
 
 private:
   atomic_type val;
@@ -42,14 +42,14 @@ public:
   CUDA INLINE static constexpr this_type bot() { return inf(); }
   CUDA INLINE static constexpr this_type top() { return neg_inf(); }
 
-  CUDA constexpr ZLB(): val(neg_inf()) {}
-  CUDA constexpr ZLB(value_type x): val(x) {}
+  CUDA constexpr LB(): val(neg_inf()) {}
+  CUDA constexpr LB(value_type x): val(x) {}
 
   template <class Mem2>
-  CUDA constexpr ZLB(const ZLB<value_type, Mem2>& other): val(other.load()) {}
+  CUDA constexpr LB(const LB<value_type, Mem2>& other): val(other.load()) {}
 
-  constexpr ZLB(const this_type& other) = default;
-  constexpr ZLB(this_type&& other) = default;
+  constexpr LB(const this_type& other) = default;
+  constexpr LB(this_type&& other) = default;
 
   CUDA INLINE constexpr this_type& operator=(value_type other) {
     memory_type::store(val, other);
@@ -117,17 +117,17 @@ public:
 };
 
 template <class VT, class Mem>
-CUDA constexpr ZLB<VT, Mem> join(ZLB<VT, Mem> a, ZLB<VT, Mem> b) {
+CUDA constexpr LB<VT, Mem> join(LB<VT, Mem> a, LB<VT, Mem> b) {
   return battery::min(a.load(), b.load());
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZLB<VT, Mem> meet(ZLB<VT, Mem> a, ZLB<VT, Mem> b) {
+CUDA constexpr LB<VT, Mem> meet(LB<VT, Mem> a, LB<VT, Mem> b) {
   return battery::max(a.load(), b.load());
 }
 
 template <class VT, class Mem>
-std::ostream& operator<<(std::ostream &s, const ZLB<VT, Mem>& a) {
+std::ostream& operator<<(std::ostream &s, const LB<VT, Mem>& a) {
   if(a.is_bot()) {
     s << "\u221E";
   }
