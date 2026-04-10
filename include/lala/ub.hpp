@@ -115,12 +115,24 @@ public:
 
 template <class VT, class Mem>
 CUDA INLINE constexpr UB<VT, Mem> join(UB<VT, Mem> a, UB<VT, Mem> b) {
-  return battery::max(a.load(), b.load());
+  return a.join(b);
 }
 
 template <class VT, class Mem>
 CUDA INLINE constexpr UB<VT, Mem> meet(UB<VT, Mem> a, UB<VT, Mem> b) {
-  return battery::min(a.load(), b.load());
+  return a.meet(b);
+}
+
+template<class VT, class Mem1, class Mem2>
+CUDA constexpr bool operator==(const UB<VT, Mem1>& a, const UB<VT, Mem2>& b)
+{
+  return a.load() == b.load();
+}
+
+template<class VT, class Mem1, class Mem2>
+CUDA constexpr bool operator!=(const UB<VT, Mem1>& a, const UB<VT, Mem2>& b)
+{
+  return a.load() != b.load();
 }
 
 template <class VT, class Mem>

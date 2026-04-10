@@ -51,13 +51,13 @@ public:
 
   constexpr this_type& operator=(const this_type&) = default;
 
-  CUDA INLINE constexpr LB& lb() { return l; }
-  CUDA INLINE constexpr UB& ub() { return u; }
-  CUDA INLINE constexpr const LB& lb() const { return l; }
-  CUDA INLINE constexpr const UB& ub() const { return u; }
+  CUDA INLINE constexpr lb_type& lb() { return l; }
+  CUDA INLINE constexpr ub_type& ub() { return u; }
+  CUDA INLINE constexpr const lb_type& lb() const { return l; }
+  CUDA INLINE constexpr const ub_type& ub() const { return u; }
 
   CUDA INLINE constexpr bool is_bot() const {
-    return l > u || l.is_bot() || u.is_bot();
+    return l.is_bot() && u.is_bot();
   }
 
   CUDA INLINE constexpr bool is_top() const {
@@ -94,12 +94,35 @@ public:
     return leq(other) && (l != other.l || u != other.u);
   }
 
-  CUDA INLINE constexpr bool leqbot(basic_type other) const {
-    return is_bot() || leq(other);
+  /** Lattice operations when considering the empty intervals to form an equivalence class with the bottom element `[oo, -oo]` selected as the representative element.
+   * Taking this equivalence class is formally defined by the quotient lattice.
+   * Therefore, we prepend the names of the operations with `q`.
+   */
+
+  CUDA INLINE constexpr bool is_qbot() const {
+    return l > u || l.is_bot() || u.is_bot();
   }
 
-  CUDA INLINE constexpr bool ltbot(basic_type other) const {
-    return (is_bot() && !other.is_bot()) || lt(other);
+  CUDA INLINE constexpr bool qjoin(basic_type other) {
+    int mask = (is_qbot() ? 0 : 1) | (other.is_qbot() ? 0 : 2);
+    switch(mask) {
+      case 0: meet_bot(); return true;
+      case 1: return false;
+      case 2: l = other.l; u = other.u; return true;
+      default: return join(other);
+    }
+  }
+
+  CUDA INLINE constexpr bool qeq(basic_type other) const {
+    return (is_qbot() && other.is_qbot()) || *this == other;
+  }
+
+  CUDA INLINE constexpr bool qleq(basic_type other) const {
+    return is_qbot() || leq(other);
+  }
+
+  CUDA INLINE constexpr bool qlt(basic_type other) const {
+    return (is_qbot() && !other.is_qbot()) || lt(other);
   }
 
   CUDA NI void print() const {
@@ -110,33 +133,65 @@ public:
     printf("]");
   }
 
-  /** precondition: `!is_bot()` */
+  /** precondition: `!is_qbot()` */
   CUDA constexpr value_type midpoint() const {
     if(l.is_top() && u.is_top()) return 0;
     if(l.is_top()) return l + 1; // the largest negative number representable.
     if(u.is_top()) return u - 1; // the largest positive number representable.
     return battery::midpoint(l, u);
   }
+
+  /** Abstract functions. */
+
+  // Given the current interval [l,u], it computes `meet([l,u], -a)`.
+  template <class Mem1>
+  CUDA constexpr this_type& neg(const ZInterval<value_type, Mem1>& a) {
+    l.meet(-a.u);
+    u.meet(-a.l);
+    return *this;
+  }
+
+
+  // Given the current interval [l,u], it computes `meet([l,u], a + b)`.
+  template <class Mem1, class Mem2>
+  CUDA constexpr this_type& add(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    l.meet(a.l + b.l);
+    u.meet(a.u + b.u);
+    return *this;
+  }
+
+  // Given the current interval [l,u], it computes `meet([l,u], a - b)`.
+  template <class Mem1, class Mem2>
+  CUDA constexpr this_type& sub(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    l.meet(a.l - b.l);
+    u.meet(a.u - b.u);
+    return *this;
+  }
+
+  // Given the current interval [l,u], it computes `meet([l,u], a * b)`.
+  template <class Mem1, class Mem2>
+  CUDA constexpr this_type& sub(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    l.meet(a.l - b.l);
+    u.meet(a.u - b.u);
+    return *this;
+  }
 };
 
 // Lattice operations
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> join(const ZInterval<VT, Mem>& a, const ZInterval<VT, Mem>& b) {
-  return ZInterval<VT, Mem>(join(a.lb(), b.lb()), join(a.ub(), b.ub()));
+CUDA constexpr ZInterval<VT, Mem> join(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+  return a.join(b);
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> meet(const ZInterval<VT, Mem>& a, const ZInterval<VT, Mem>& b) {
-  return ZInterval<VT, Mem>(meet(a.lb(), b.lb()), meet(a.ub(), b.ub()));
+CUDA constexpr ZInterval<VT, Mem> meet(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+  return a.meet(b);
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> joinbot(const ZInterval<VT, Mem>& a, const ZInterval<VT, Mem>& b) {
-  if(a.is_bot() && b.is_bot()) return ZInterval<VT, Mem>::bot();
-  if(a.is_bot()) return b;
-  if(b.is_bot()) return a;
-  return join(a, b);
+CUDA constexpr ZInterval<VT, Mem> qjoin(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+  return a.qjoin(b);
 }
 
 template<class VT, class Mem1, class Mem2>
@@ -148,7 +203,7 @@ CUDA constexpr bool operator==(const ZInterval<VT, Mem1>& a, const ZInterval<VT,
 template<class VT, class Mem1, class Mem2>
 CUDA constexpr bool operator!=(const ZInterval<VT, Mem1>& a, const ZInterval<VT, Mem2>& b)
 {
-  return !(a == b);
+  return a.lb() != b.lb() || a.ub() != b.ub();
 }
 
 template<class VT, class Mem>
