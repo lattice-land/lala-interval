@@ -8,6 +8,8 @@ using zub = lala::UB<int, battery::local_memory>;
 using azub = lala::UB<int, battery::atomic_memory<>>;
 using fub = lala::UB<float, battery::local_memory>;
 using afub = lala::UB<float, battery::atomic_memory<>>;
+using unzub = lala::UB<unsigned int, battery::local_memory>;
+using aunzub = lala::UB<unsigned int, battery::atomic_memory<>>;
 
 template <class UB>
 void generic_UB_test() {
@@ -19,6 +21,7 @@ void generic_UB_test() {
   join_meet_generic_test(UB(0), UB(0));
   join_meet_generic_test(UB(0), UB(5));
   join_meet_generic_test(UB(-10), UB(-5));
+  // join_meet_generic_test(UB(-3), UB(3)); // for `unsigned int`, it doesn't work.
 }
 
 TEST(UBTest, LatticeOperation) {
@@ -26,4 +29,6 @@ TEST(UBTest, LatticeOperation) {
   generic_UB_test<azub>();
   generic_UB_test<fub>();
   generic_UB_test<afub>();
+  generic_UB_test<unzub>();
+  generic_UB_test<aunzub>();
 }
