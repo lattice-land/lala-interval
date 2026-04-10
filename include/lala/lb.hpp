@@ -3,9 +3,6 @@
 #ifndef LALA_INTERVAL_LB_HPP
 #define LALA_INTERVAL_LB_HPP
 
-#include <type_traits>
-#include <utility>
-#include <cmath>
 #include <iostream>
 #include "battery/memory.hpp"
 
@@ -117,12 +114,12 @@ public:
 };
 
 template <class VT, class Mem>
-CUDA constexpr LB<VT, Mem> join(LB<VT, Mem> a, LB<VT, Mem> b) {
+CUDA INLINE constexpr LB<VT, Mem> join(LB<VT, Mem> a, LB<VT, Mem> b) {
   return battery::min(a.load(), b.load());
 }
 
 template <class VT, class Mem>
-CUDA constexpr LB<VT, Mem> meet(LB<VT, Mem> a, LB<VT, Mem> b) {
+CUDA INLINE constexpr LB<VT, Mem> meet(LB<VT, Mem> a, LB<VT, Mem> b) {
   return battery::max(a.load(), b.load());
 }
 

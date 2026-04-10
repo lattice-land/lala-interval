@@ -1,11 +1,8 @@
-// Copyright 2026 Yi-Nung Tsao 
+// Copyright 2026 Yi-Nung Tsao
 
 #ifndef LALA_INTERVAL_UB_HPP
 #define LALA_INTERVAL_UB_HPP
 
-#include <type_traits>
-#include <utility>
-#include <cmath>
 #include <iostream>
 #include "battery/memory.hpp"
 
@@ -105,10 +102,10 @@ public:
 
   CUDA NI void print() const {
     if(is_bot()) {
-      printf("\u221E");
+      printf("-\u221E");
     }
     else if(is_top()) {
-      printf("-\u221E");
+      printf("\u221E");
     }
     else {
       ::battery::print(load());
@@ -117,22 +114,22 @@ public:
 };
 
 template <class VT, class Mem>
-CUDA constexpr UB<VT, Mem> join(UB<VT, Mem> a, UB<VT, Mem> b) {
+CUDA INLINE constexpr UB<VT, Mem> join(UB<VT, Mem> a, UB<VT, Mem> b) {
   return battery::max(a.load(), b.load());
 }
 
 template <class VT, class Mem>
-CUDA constexpr UB<VT, Mem> meet(UB<VT, Mem> a, UB<VT, Mem> b) {
+CUDA INLINE constexpr UB<VT, Mem> meet(UB<VT, Mem> a, UB<VT, Mem> b) {
   return battery::min(a.load(), b.load());
 }
 
 template <class VT, class Mem>
 std::ostream& operator<<(std::ostream &s, const UB<VT, Mem>& a) {
   if(a.is_bot()) {
-    s << "\u221E";
+    s << "-\u221E";
   }
   else if(a.is_top()) {
-    s << "-\u221E";
+    s << "\u221E";
   }
   else {
     s << a.load();
