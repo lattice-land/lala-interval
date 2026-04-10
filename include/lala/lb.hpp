@@ -28,7 +28,7 @@ public:
   constexpr static const char* name = "LB";
 
 private:
-  atomic_type val;
+  atomic_type value;
 
   CUDA INLINE static constexpr this_type neg_inf() {
     return battery::limits<value_type>::neg_inf();
@@ -42,65 +42,65 @@ public:
   CUDA INLINE static constexpr this_type bot() { return inf(); }
   CUDA INLINE static constexpr this_type top() { return neg_inf(); }
 
-  CUDA constexpr LB(): val(neg_inf()) {}
-  CUDA constexpr LB(value_type x): val(x) {}
+  CUDA constexpr LB(): value(top()) {}
+  CUDA constexpr LB(value_type x): value(x) {}
 
   template <class Mem2>
-  CUDA constexpr LB(const LB<value_type, Mem2>& other): val(other.load()) {}
+  CUDA constexpr LB(const LB<value_type, Mem2>& other): value(other.load()) {}
 
   constexpr LB(const this_type& other) = default;
   constexpr LB(this_type&& other) = default;
 
   CUDA INLINE constexpr this_type& operator=(value_type other) {
-    memory_type::store(val, other);
+    memory_type::store(value, other);
     return *this;
   }
 
   CUDA INLINE constexpr value_type load() const {
-    return memory_type::load(val);
+    return memory_type::load(value);
   }
 
-  CUDA INLINE constexpr atomic_type& atomic() { return val; }
+  CUDA INLINE constexpr atomic_type& atomic() { return value; }
   CUDA INLINE constexpr operator value_type() const { return load(); }
 
   CUDA INLINE constexpr bool is_top() const {
-    return load() == neg_inf();
+    return load() == top();
   }
 
   CUDA INLINE constexpr bool is_bot() const {
-    return load() == inf();
+    return load() == bot();
   }
 
   CUDA INLINE constexpr void join_top() {
-    memory_type::store(val, neg_inf());
+    memory_type::store(value, top());
   }
 
   CUDA INLINE constexpr bool join(basic_type other) {
-    if(load() > other.val) {
-      memory_type::store(val, other.val);
+    if(load() > other.value) {
+      memory_type::store(value, other.value);
       return true;
     }
     return false;
   }
 
   CUDA INLINE constexpr void meet_bot() {
-    memory_type::store(val, inf());
+    memory_type::store(value, bot());
   }
 
   CUDA INLINE constexpr bool meet(basic_type other) {
-    if(load() < other.val) {
-      memory_type::store(val, other.val);
+    if(load() < other.value) {
+      memory_type::store(value, other.value);
       return true;
     }
     return false;
   }
 
   CUDA INLINE constexpr bool leq(basic_type other) const {
-    return load() >= other.val;
+    return load() >= other.value;
   }
 
   CUDA INLINE constexpr bool lt(basic_type other) const {
-    return load() > other.val;
+    return load() > other.value;
   }
 
   CUDA NI void print() const {
