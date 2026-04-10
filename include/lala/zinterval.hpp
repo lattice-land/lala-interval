@@ -122,18 +122,18 @@ public:
 // Lattice operations
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> join(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+CUDA constexpr ZInterval<VT, Mem> join(const ZInterval<VT, Mem>& a, const ZInterval<VT, Mem>& b) {
   return ZInterval<VT, Mem>(join(a.lb(), b.lb()), join(a.ub(), b.ub()));
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> meet(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+CUDA constexpr ZInterval<VT, Mem> meet(const ZInterval<VT, Mem>& a, const ZInterval<VT, Mem>& b) {
   return ZInterval<VT, Mem>(meet(a.lb(), b.lb()), meet(a.ub(), b.ub()));
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> joinbot(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
-  if(a.is_bot() && b.is_bot()) return a;
+CUDA constexpr ZInterval<VT, Mem> joinbot(const ZInterval<VT, Mem>& a, const ZInterval<VT, Mem>& b) {
+  if(a.is_bot() && b.is_bot()) return ZInterval<VT, Mem>::bot();
   if(a.is_bot()) return b;
   if(b.is_bot()) return a;
   return join(a, b);
