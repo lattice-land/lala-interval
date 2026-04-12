@@ -64,9 +64,10 @@ public:
     return l.is_top() && u.is_top();
   }
 
-  CUDA INLINE constexpr void join_top() {
+  CUDA INLINE constexpr this_type& join_top() {
     l.join_top();
     u.join_top();
+    return *this;
   }
 
   CUDA INLINE constexpr bool join(basic_type other) {
@@ -75,9 +76,10 @@ public:
     return r;
   }
 
-  CUDA INLINE constexpr void meet_bot() {
+  CUDA INLINE constexpr this_type& meet_bot() {
     l.meet_bot();
     u.meet_bot();
+    return *this;
   }
 
   CUDA INLINE constexpr bool meet(basic_type other) {
@@ -143,36 +145,115 @@ public:
 
   /** Abstract functions. */
 
-  // Given the current interval [l,u], it computes `meet([l,u], -a)`.
-  template <class Mem1>
-  CUDA constexpr this_type& neg(const ZInterval<value_type, Mem1>& a) {
-    l.meet(-a.u);
-    u.meet(-a.l);
+  // Remove 0 from the interval when possible.
+  CUDA INLINE constexpr this_type& neqzero() {
+    if(l == 0) { l.meet(1); }
+    if(u == 0) { u.meet(-1); }
     return *this;
   }
 
+  // Given the current interval [l,u], it computes `meet([l,u], -a)`.
+  template <class Mem1>
+  CUDA INLINE constexpr this_type& neg(const ZInterval<value_type, Mem1>& a) {
+    if(a.is_bot()) { return meet_bot(); }
+    if(!a.u.is_top()) { l.meet(-a.u); }
+    if(!a.l.is_top()) { u.meet(-a.l); }
+    return *this;
+  }
 
   // Given the current interval [l,u], it computes `meet([l,u], a + b)`.
   template <class Mem1, class Mem2>
-  CUDA constexpr this_type& add(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
-    l.meet(a.l + b.l);
-    u.meet(a.u + b.u);
+  CUDA INLINE constexpr this_type& add(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    if(!a.l.is_top() && !b.l.is_top()) { l.meet(a.l + b.l); }
+    if(!a.u.is_top() && !b.u.is_top()) { u.meet(a.u + b.u); }
     return *this;
   }
 
   // Given the current interval [l,u], it computes `meet([l,u], a - b)`.
   template <class Mem1, class Mem2>
-  CUDA constexpr this_type& sub(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
-    l.meet(a.l - b.l);
-    u.meet(a.u - b.u);
+  CUDA INLINE constexpr this_type& sub(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    if(!a.l.is_top() && !b.l.is_top()) { l.meet(a.l - b.l); }
+    if(!a.u.is_top() && !b.u.is_top()) { u.meet(a.u - b.u); }
     return *this;
   }
 
   // Given the current interval [l,u], it computes `meet([l,u], a * b)`.
   template <class Mem1, class Mem2>
-  CUDA constexpr this_type& sub(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
-    l.meet(a.l - b.l);
-    u.meet(a.u - b.u);
+  CUDA INLINE constexpr this_type& mul(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    using battery::min;
+    using battery::max;
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    if(!a.l.is_top() && !a.u.is_top() && !b.l.is_top() && !b.u.is_top()) {
+      l.meet(min(min(a.l * b.l, a.l * b.u), min(a.u * b.l, a.u * b.u)));
+      u.meet(max(max(a.l * b.l, a.l * b.u), max(a.u * b.l, a.u * b.u)));
+    }
+    return *this;
+  }
+
+  // Let a = _ * x where _ can be anything, then `mulzero` removes 0 from x (if possible) whenever 0 is not in a.
+  template <class Mem1>
+  CUDA INLINE constexpr this_type& mulzero(const ZInterval<value_type, Mem1>& a) {
+    if(a.l > 0 || a.u < 0) { neqzero(); }
+    return *this;
+  }
+
+  // Let a = b * x, `mulr` computes the interval of `x` given a and b, called the residual.
+  // Can be used in conjunction with `mulzero` for a more precise result.
+  // Why is mulr and mulzero separated? When implementing a propagator for `x = y * z`, it results in faster convergence to compute `z.mulzero(x) ; y.mulr(x,z) ; y.mulzero(x); z.mulr(x,y); ` instead of `y.mulr(x,z); z.mulr(x,y);` (if both were merged).
+  template <class Mem1, class Mem2>
+  CUDA INLINE constexpr this_type& mulr(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    using battery::min;
+    using battery::max;
+    using battery::cdiv;
+    using battery::fdiv;
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    if(!a.l.is_top() && !a.u.is_top() && !b.l.is_top() && !b.u.is_top()) {
+      if(b.l > 0 || b.u < 0) {
+        l.meet(min(min(cdiv(a.l, b.l), cdiv(a.l, b.u)), min(cdiv(a.u, b.l), cdiv(a.u, b.u))));
+        u.meet(max(max(fdiv(a.l, b.l), fdiv(a.l, b.u)), max(fdiv(a.u, b.l), fdiv(a.u, b.u))));
+      }
+      else if(b.l < 0 && b.u > 0 && (a.l > 0 || a.u < 0)) {
+        l.meet(min(a.l, -a.u));
+        u.meet(max(-a.l, a.u));
+      }
+    }
+    return *this;
+  }
+
+  template <class Mem1, class Mem2>
+  CUDA INLINE constexpr this_type& min(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    using battery::min;
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    l.meet(min(a.l, b.l));
+    u.meet(min(a.u, b.u));
+    return *this;
+  }
+
+  // Let a = min(b, x), we update x according to a and b.
+  template <class Mem1, class Mem2>
+  CUDA INLINE constexpr this_type& minr(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    l.meet(a.l);
+    if(a.u < b.l) { u.meet(a.u); }
+    return *this;
+  }
+
+  template <class Mem1, class Mem2>
+  CUDA INLINE constexpr this_type& max(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    using battery::max;
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    l.meet(max(a.l, b.l));
+    u.meet(max(a.u, b.u));
+    return *this;
+  }
+
+  template <class Mem1, class Mem2>
+  CUDA INLINE constexpr this_type& maxr(const ZInterval<value_type, Mem1>& a, const ZInterval<value_type, Mem2>& b) {
+    if(a.is_bot() || b.is_bot()) { return meet_bot(); }
+    if(a.l > b.u) { l.meet(a.l); }
+    u.meet(a.u);
     return *this;
   }
 };
