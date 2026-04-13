@@ -115,12 +115,14 @@ public:
 
 template <class VT, class Mem>
 CUDA INLINE constexpr LB<VT, Mem> join(LB<VT, Mem> a, LB<VT, Mem> b) {
-  return a.join(b);
+  a.join(b);
+  return a;
 }
 
 template <class VT, class Mem>
 CUDA INLINE constexpr LB<VT, Mem> meet(LB<VT, Mem> a, LB<VT, Mem> b) {
-  return a.meet(b);
+  a.meet(b);
+  return a;
 }
 
 template<class VT, class Mem1, class Mem2>
