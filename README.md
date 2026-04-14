@@ -8,9 +8,18 @@ We aim to be general enough to be reused across domains, here what is this libra
 * [Conflict-free replicated data type](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type): Provide simple [anonymous state-based CRDTs](https://members.loria.fr/CIgnat/files/replication/Delta-CRDT.pdf) with `LB` and `UB`.
 * [Asynchronous fixpoint iterations](https://web.mit.edu/dimitrib/www/pdc.html): Provide lock-free join and meet operations, compatible with execution on GPU hardware (see [Talbot et al., 2022](https://ojs.aaai.org/index.php/AAAI/article/view/20298)).
 
+## Abstract Domains
+
+* `LB`
+* `UB`
+* `ZInterval`
+* `FInterval`
+
 ## Operations Supported
 
-If you want to project the interval of an expression, e.g. `y + z`, initialize the result variable `Interval r;` and call the forward operator on it `r.add(y,z)`.
+If you want to project the interval of an expression, e.g. `y + z`, initialize the result variable to top (e.g. `ZInterval<int> r;`) and call the forward operator on it: `r.add(y,z)`.
+
+### Integer Intervals
 
 | Operation  | Constraint | Forward operator | Backward operator |
 | ------------- | ------------- | ------------- | ------------- |
@@ -19,3 +28,5 @@ If you want to project the interval of an expression, e.g. `y + z`, initialize t
 | Subtraction  | x = y - z | `x.sub(y,z)`  | `y.add(x,z)` and `z.add(x,y)` |
 
 TBC
+
+### Floating-point Intervals
