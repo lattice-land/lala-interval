@@ -188,16 +188,16 @@ public:
     return *this;
   }
 
-  // Let a = _ * x where _ can be anything, then `mulzero` removes 0 from x (if possible) whenever 0 is not in a.
-  CUDA INLINE constexpr this_type& mulzero(basic_type a) {
+  // Let a = _ * x where _ can be anything, then `mulb_zero` removes 0 from x (if possible) whenever 0 is not in a.
+  CUDA INLINE constexpr this_type& mulb_zero(basic_type a) {
     if(a.l > 0 || a.u < 0) { neqzero(); }
     return *this;
   }
 
-  // Let a = b * x, `mulr` computes the interval of `x` given a and b, called the residual.
-  // Can be used in conjunction with `mulzero` for a more precise result.
-  // Why is mulr and mulzero separated? When implementing a propagator for `x = y * z`, it results in faster convergence to compute `z.mulzero(x) ; y.mulr(x,z) ; y.mulzero(x); z.mulr(x,y); ` instead of `y.mulr(x,z); z.mulr(x,y);` (if both were merged).
-  CUDA INLINE constexpr this_type& mulr(basic_type a, basic_type b) {
+  // Let a = b * x, `mulb_nz` computes the interval of `x` given a and b, without caring about the case where `0 notin a` (taken care of by `mulb_zero`).
+  // Why exposing `mulb_zero` and `mulb_nz` when we already have `mulb`?
+  //   When implementing a propagator for `x = y * z`, it results in faster convergence to compute `z.mulb_zero(x) ; y.mulb_nz(x,z) ; y.mulb_zero(x); z.mulb_nz(x,y); ` instead of `y.mulb(x,z); z.mulb(x,y);` (if both were merged).
+  CUDA INLINE constexpr this_type& mulb_nz(basic_type a, basic_type b) {
     using battery::min;
     using battery::max;
     using battery::cdiv;
@@ -216,6 +216,12 @@ public:
     return *this;
   }
 
+  // Let a = b * x, `mulb` computes the interval of `x` given a and b.
+  CUDA INLINE constexpr this_type& mulb(basic_type a, basic_type b) {
+    mulb_zero(a);
+    mulb_nz(a, b);
+  }
+
   CUDA INLINE constexpr this_type& min(basic_type a, basic_type b) {
     using battery::min;
     if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
@@ -225,7 +231,7 @@ public:
   }
 
   // Let a = min(b, x), we update x according to a and b.
-  CUDA INLINE constexpr this_type& minr(basic_type a, basic_type b) {
+  CUDA INLINE constexpr this_type& minb(basic_type a, basic_type b) {
     if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
     l.meet(a.l);
     if(a.u < b.l) { u.meet(a.u); }
@@ -240,7 +246,7 @@ public:
     return *this;
   }
 
-  CUDA INLINE constexpr this_type& maxr(basic_type a, basic_type b) {
+  CUDA INLINE constexpr this_type& maxb(basic_type a, basic_type b) {
     if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
     if(a.l > b.u) { l.meet(a.l); }
     u.meet(a.u);
