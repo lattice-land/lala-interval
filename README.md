@@ -14,10 +14,10 @@ We propose abstractions of the universe of discourse of integers $\mathbb{Z}$ an
 Let $\mathbb{I}$ be either $\mathbb{Z}$ or $\mathbb{R}$.
 The following abstractions are approximating a subset of the universe of discourse.
 
-* *Lower bound abstract universe*: `LB` approximates a set $S \subseteq \mathbb{I}$ by taking its lower bound $\mathit{min}~S$ if it is a bounded set, and $-\infty$ otherwise.
-* *Upper bound abstract universe*: `UB` approximates a set $S \subseteq \mathbb{I}$ by taking its upper bound $\mathit{max}~S$ if it is a bounded set, and $\infty$ otherwise.
-* *Integer interval abstract universe*: `ZInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{Z}$.
-* *Floating-point interval abstract universe*: `FInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{R}$.
+* **Lower bound abstract universe**: `LB` approximates a set $S \subseteq \mathbb{I}$ by taking its lower bound $\mathit{min}~S$ if it is a bounded set, and $-\infty$ otherwise.
+* **Upper bound abstract universe**: `UB` approximates a set $S \subseteq \mathbb{I}$ by taking its upper bound $\mathit{max}~S$ if it is a bounded set, and $\infty$ otherwise.
+* **Integer interval abstract universe**: `ZInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{Z}$.
+* **Floating-point interval abstract universe**: `FInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{R}$.
 
 We represent infinities $\{-\infty, \infty\}$ using the minimum and maximum representable values on the underlying arithmetic type: for integers type `I` we rely on `std::numeric_limits<I>::min()` and `std::numeric_limits<I>::max()`, and for floating-point type `F` we rely on `-std::numeric_limits<F>::infinity()` and `std::numeric_limits<F>::infinity()`.
 
@@ -48,18 +48,30 @@ In the following, we let `x,y,z` be integer intervals of type `ZInterval`.
 
 Let $\frac{.}{.}$ be the division over the real numbers, $\lfloor . \rfloor \in \mathbb{R} \to \mathbb{Z}$ be the function rounding downwards a real number, and  $\lceil . \rceil \in \mathbb{R} \to \mathbb{Z}$ be the function rounding upwards a real number.
 
-* *Semantics of floor division*: $x = \textnormal{fdiv}(y,z) \Leftrightarrow x = \lfloor \frac{y}{z} \rfloor$
-* *Semantics of ceiling division*: $x = \textnormal{cdiv}(y,z) \Leftrightarrow x = \lceil \frac{y}{z} \rceil$
-* *Semantics of truncated division*: $x = \textnormal{tdiv}(y,z) \Leftrightarrow
+* **Semantics of floor division**
+```math
+x = \textnormal{fdiv}(y,z) \Leftrightarrow x = \lfloor \frac{y}{z} \rfloor
+```
+* **Semantics of ceiling division**
+```math
+x = \textnormal{cdiv}(y,z) \Leftrightarrow x = \lceil \frac{y}{z} \rceil
+```
+* **Semantics of truncated division**
+```math
+x = \textnormal{tdiv}(y,z) \Leftrightarrow
     x=\begin{cases}
         \lfloor\frac{y}{z}\rfloor&\text{if }\frac{y}{z}\geq 0\\
         \lceil\frac{y}{z}\rceil&\text{if }\frac{y}{z}< 0\\
-    \end{cases}$
-* *Semantics of Euclidean division*: $x = \textnormal{ediv}(y,z) \Leftrightarrow
+    \end{cases}
+```
+* **Semantics of Euclidean division**
+```math
+x = \textnormal{ediv}(y,z) \Leftrightarrow
     x=\begin{cases}
         \lfloor\frac{y}{z}\rfloor&\text{if }z> 0\\
         \lceil\frac{y}{z}\rceil&\text{if }z< 0\\
-    \end{cases}$
+    \end{cases}
+```
 
 [^1]: Precondition: the lower and upper bounds of the denominator `z` must be different from zero.
 
