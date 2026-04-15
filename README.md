@@ -32,8 +32,8 @@ Let `L` be one of the abstract universe above.
 | Top  | $\top$ | `L::top()` |
 | Partial order | $a \leq b$ | `a.leq(b)` |
 | Strict partial order | $a < b$ | `a.lt(b)` |
-| Meet | $a\binop{\sqcap}b$ | `meet(a,b)` or `a.meet(b)` (in-place) |
-| Join | $a\binop{\sqcup}b$ | `join(a,b)` or `a.join(b)` (in-place) |
+| Meet | $a \sqcap b$ | `meet(a,b)` or `a.meet(b)` (in-place) |
+| Join | $a \sqcup b$ | `join(a,b)` or `a.join(b)` (in-place) |
 
 The following operations are mostly there for optimization purposes, but could be easily recovered from the previous lattice operations.
 
@@ -41,8 +41,8 @@ The following operations are mostly there for optimization purposes, but could b
 | ------------- | ------------- | ------------- |
 | Equality | $a = b$ | `a == b` |
 | Disequality | $a \neq b$ | `a != b` |
-| Meet bottom | $a\binop{\sqcap}\bot$ | `a.meet_bot()` |
-| Join top | $a\binop{\sqcup}\top$ | `a.join_top()` |
+| Meet bottom | $a \sqcap \bot$ | `a.meet_bot()` |
+| Join top | $a \sqcup \top$ | `a.join_top()` |
 | Bottom test | $a = \bot$ | `a.is_bot()` |
 | Top test | $a = \top$ | `a.is_top()` |
 
@@ -50,7 +50,7 @@ The following operations are mostly there for optimization purposes, but could b
 
 In this library, the bottom element of the interval abstract universe is $[\infty, -\infty]$ where infinities are represented as noted above (using `std::numeric_limits`).
 In particular, we do not do anything special with empty intervals ($[\ell, u]$ where $\ell > u$) and the lattice operations are well-defined on those, e.g. $[1,0] \sqcap [0,10] = [\textnormal{max}(1,0), \textnormal{min}(0,10)] = [1, 0]$.
-However, it is sometimes preferable to consider all empty intervals as a unique bottom element, in which case intervals are the set $\{[\ell, u] \;|\; \ell \leq u\} \cup \{\bot\}$ in which $\bot$ is a special element.
+However, it is sometimes preferable to consider all empty intervals as a unique bottom element, in which case intervals are the set $\set{[\ell, u] \;|\; \ell \leq u} \cup \set{\bot} in which $\bot$ is a special element.
 This is the typical implementation in abstract interpretation.
 
 This library gives users both options: considering $[\infty, -\infty]$ as the only bottom element, or viewing all empty intervals as an equivalence class equal to $\bot$.
