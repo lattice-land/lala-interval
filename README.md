@@ -29,7 +29,7 @@ Let `L` be one of the abstract universe above.
 | Operation  | Mathematical notation | Programming notation |
 | ------------- | ------------- | ------------- |
 | Bottom  | $\bot$ | `L::bot()` |
-| Top  | $\top$ | `L::top()` |
+| Top  | $\top$ | `L::top()` or default constructor `L()` |
 | Partial order | $a \leq b$ | `a.leq(b)` |
 | Strict partial order | $a < b$ | `a.lt(b)` |
 | Meet | $a \sqcap b$ | `meet(a,b)` or `a.meet(b)` (in-place) |
@@ -41,8 +41,8 @@ The following operations are mostly there for optimization purposes, but could b
 | ------------- | ------------- | ------------- |
 | Equality | $a = b$ | `a == b` |
 | Disequality | $a \neq b$ | `a != b` |
-| Meet bottom | $a \sqcap \bot$ | `a.meet_bot()` |
-| Join top | $a \sqcup \top$ | `a.join_top()` |
+| Meet bottom | $a \sqcap \bot$ | `a.meet_bot()` (in-place) |
+| Join top | $a \sqcup \top$ | `a.join_top()` (in-place) |
 | Bottom test | $a = \bot$ | `a.is_bot()` |
 | Top test | $a = \top$ | `a.is_top()` |
 
@@ -50,7 +50,7 @@ The following operations are mostly there for optimization purposes, but could b
 
 In this library, the bottom element of the interval abstract universe is $[\infty, -\infty]$ where infinities are represented as noted above (using `std::numeric_limits`).
 In particular, we do not do anything special with empty intervals ($[\ell, u]$ where $\ell > u$) and the lattice operations are well-defined on those, e.g. $[1,0] \sqcap [0,10] = [\textnormal{max}(1,0), \textnormal{min}(0,10)] = [1, 0]$.
-However, it is sometimes preferable to consider all empty intervals as a unique bottom element, in which case intervals are the set $\set{[\ell, u] \;|\; \ell \leq u} \cup \set{\bot} in which $\bot$ is a special element.
+However, it is sometimes preferable to consider all empty intervals as a unique bottom element, in which case intervals are the set $\set{[\ell, u] \;|\; \ell \leq u} \cup \set{\bot}$ in which $\bot$ is a special element.
 This is the typical implementation in abstract interpretation.
 
 This library gives users both options: considering $[\infty, -\infty]$ as the only bottom element, or viewing all empty intervals as an equivalence class equal to $\bot$.
@@ -62,7 +62,7 @@ The second is given by the "quotient" lattice operations described in the follow
 | Quotient bottom test  | $\textnormal{isqbot}([\ell, u]) \triangleq \ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_qbot()` |
 | Quotient partial order | $a \leq b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qleq(b)` |
 | Strict quotient partial order | $a < b \land \textnormal{isqbot}(a) \neq \textnormal{isqbot}(b)$ | `a.qlt(b)` |
-| Quotient Join | $\qjoin(a,b)$ | `qjoin(a,b)` or `a.qjoin(b)` (in-place) |
+| Quotient Join | $\textnormal{qjoin}(a,b)$ | `qjoin(a,b)` or `a.qjoin(b)` (in-place) |
 | Quotient Equality | $a = b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qeq(b)` |
 
 With the quotient join defined as:
@@ -102,7 +102,7 @@ In the following, we let `x,y,z` be integer intervals of type `ZInterval`.
 
 #### Semantics of Division Operators
 
-Let $\frac{.}{.}$ be the division over the real numbers, $\lfloor . \rfloor \in \mathbb{R} \to \mathbb{Z}$ be the function rounding downwards a real number, and  $\lceil . \rceil \in \mathbb{R} \to \mathbb{Z}$ be the function rounding upwards a real number.
+Let $\frac{.}{.}$ be the division over the real numbers, $\lfloor . \rfloor \in \mathbb{R} \to \mathbb{Z}$ be the function rounding downwards a real number, and $\lceil . \rceil \in \mathbb{R} \to \mathbb{Z}$ be the function rounding upwards a real number.
 
 * **Semantics of floor division**
 ```math
