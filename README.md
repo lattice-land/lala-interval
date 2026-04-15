@@ -11,15 +11,71 @@ We aim to be general enough to be reused across domains, here what is this libra
 ## Abstract Universes
 
 We propose abstractions of the universe of discourse of integers $\mathbb{Z}$ and real numbers $\mathbb{R}$.
-Let $\mathbb{I}$ be either $\mathbb{Z}$ or $\mathbb{R}$.
+Let $\mathbb{A}$ be either $\mathbb{Z}$ or $\mathbb{R}$.
 The following abstractions are approximating a subset of the universe of discourse.
 
-* **Lower bound abstract universe**: `LB` approximates a set $S \subseteq \mathbb{I}$ by taking its lower bound $\mathit{min}~S$ if it is a bounded set, and $-\infty$ otherwise.
-* **Upper bound abstract universe**: `UB` approximates a set $S \subseteq \mathbb{I}$ by taking its upper bound $\mathit{max}~S$ if it is a bounded set, and $\infty$ otherwise.
+* **Lower bound abstract universe**: `LB` approximates a set $S \subseteq \mathbb{A}$ by taking its lower bound $\mathit{min}~S$ if it is a bounded set, and $-\infty$ otherwise.
+* **Upper bound abstract universe**: `UB` approximates a set $S \subseteq \mathbb{A}$ by taking its upper bound $\mathit{max}~S$ if it is a bounded set, and $\infty$ otherwise.
 * **Integer interval abstract universe**: `ZInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{Z}$.
 * **Floating-point interval abstract universe**: `FInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{R}$.
 
 We represent infinities $\{-\infty, \infty\}$ using the minimum and maximum representable values on the underlying arithmetic type: for integers type `I` we rely on `std::numeric_limits<I>::min()` and `std::numeric_limits<I>::max()`, and for floating-point type `F` we rely on `-std::numeric_limits<F>::infinity()` and `std::numeric_limits<F>::infinity()`.
+
+### Lattice Operations
+
+We have a unified interface for standard lattice operations.
+Let `L` be one of the abstract universe above.
+
+| Operation  | Mathematical notation | Programming notation |
+| ------------- | ------------- | ------------- |
+| Bottom  | $\bot$ | `L::bot()` |
+| Top  | $\top$ | `L::top()` |
+| Partial order | $a \leq b$ | `a.leq(b)` |
+| Strict partial order | $a < b$ | `a.lt(b)` |
+| Meet | $a\binop{\sqcap}b$ | `meet(a,b)` or `a.meet(b)` (in-place) |
+| Join | $a\binop{\sqcup}b$ | `join(a,b)` or `a.join(b)` (in-place) |
+
+The following operations are mostly there for optimization purposes, but could be easily recovered from the previous lattice operations.
+
+| Operation  | Mathematical notation | Programming notation |
+| ------------- | ------------- | ------------- |
+| Equality | $a = b$ | `a == b` |
+| Disequality | $a \neq b$ | `a != b` |
+| Meet bottom | $a\binop{\sqcap}\bot$ | `a.meet_bot()` |
+| Join top | $a\binop{\sqcup}\top$ | `a.join_top()` |
+| Bottom test | $a = \bot$ | `a.is_bot()` |
+| Top test | $a = \top$ | `a.is_top()` |
+
+### Extra Interval Quotient Lattice Operations
+
+In this library, the bottom element of the interval abstract universe is $[\infty, -\infty]$ where infinities are represented as noted above (using `std::numeric_limits`).
+In particular, we do not do anything special with empty intervals ($[\ell, u]$ where $\ell > u$) and the lattice operations are well-defined on those, e.g. $[1,0] \sqcap [0,10] = [\textnormal{max}(1,0), \textnormal{min}(0,10)] = [1, 0]$.
+However, it is sometimes preferable to consider all empty intervals as a unique bottom element, in which case intervals are the set $\{[\ell, u] \;|\; \ell \leq u\} \cup \{\bot\}$ in which $\bot$ is a special element.
+This is the typical implementation in abstract interpretation.
+
+This library gives users both options: considering $[\infty, -\infty]$ as the only bottom element, or viewing all empty intervals as an equivalence class equal to $\bot$.
+The first is given by the "standard" lattice operations described above.
+The second is given by the "quotient" lattice operations described in the following table (prefixed by "q").
+
+| Operation  | Mathematical definition | Programming notation |
+| ------------- | ------------- | ------------- |
+| Quotient bottom test  | $\textnormal{isqbot}([\ell, u]) \triangleq \ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_qbot()` |
+| Quotient partial order | $a \leq b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qleq(b)` |
+| Strict quotient partial order | $a < b \land \textnormal{isqbot}(a) \neq \textnormal{isqbot}(b)$ | `a.qlt(b)` |
+| Quotient Join | $\qjoin(a,b)$ | `qjoin(a,b)` or `a.qjoin(b)` (in-place) |
+| Quotient Equality | $a = b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qeq(b)` |
+
+With the quotient join defined as:
+```math
+  \textnormal{qjoin}(x, y) \triangleq
+    \begin{cases}
+        \bot &\text{if } \textnormal{isqbot}(x) \land \textnormal{isqbot}(y) \\
+        y &\text{if } \textnormal{isqbot}(x) \\
+        x &\text{if } \textnormal{isqbot}(y) \\
+        x \sqcup y & \text{otherwise }
+    \end{cases}
+```
+
 
 ### ZInterval: Abstract Operations
 
@@ -61,7 +117,7 @@ x = \textnormal{cdiv}(y,z) \Leftrightarrow x = \lceil \frac{y}{z} \rceil
 x = \textnormal{tdiv}(y,z) \Leftrightarrow
     x=\begin{cases}
         \lfloor\frac{y}{z}\rfloor&\text{if }\frac{y}{z}\geq 0\\
-        \lceil\frac{y}{z}\rceil&\text{if }\frac{y}{z}< 0\\
+        \lceil\frac{y}{z}\rceil&\text{if }\frac{y}{z}< 0
     \end{cases}
 ```
 * **Semantics of Euclidean division**
@@ -69,7 +125,7 @@ x = \textnormal{tdiv}(y,z) \Leftrightarrow
 x = \textnormal{ediv}(y,z) \Leftrightarrow
     x=\begin{cases}
         \lfloor\frac{y}{z}\rfloor&\text{if }z> 0\\
-        \lceil\frac{y}{z}\rceil&\text{if }z< 0\\
+        \lceil\frac{y}{z}\rceil&\text{if }z< 0
     \end{cases}
 ```
 
