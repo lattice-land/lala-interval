@@ -133,4 +133,17 @@ x = \textnormal{ediv}(y,z) \Leftrightarrow
 
 ### FInterval: Abstract Operations
 
+In the following, we let `x,y,z` be integer intervals of type `FInterval`.
+
+| Operation  | Constraint | Forward operator | Backward operator |
+| ------------- | ------------- | ------------- | ------------- |
+| Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` |
+| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` |
+| Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` and `z.sub(x,y)` |
+| Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` and `z.sub(y,x)` |
+| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.div(x,z)` and `z.div(x,y)` |
+| Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` and `z.div(y,x)` |
+| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_b(x,z)` and `z.max_b(x,y)` |
+| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_b(x,z)` and `z.min_b(x,y)` |
+
 ## Abstract Domain
