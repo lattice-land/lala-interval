@@ -3,6 +3,9 @@
 #ifndef LALA_INTERVAL_ZINTERVAL_HPP
 #define LALA_INTERVAL_ZINTERVAL_HPP
 
+#include "lala/lb.hpp"
+#include "lala/ub.hpp"
+
 namespace lala {
 
 template <class VT, class Mem = battery::local_memory>
@@ -55,6 +58,10 @@ public:
   CUDA INLINE constexpr ub_type& ub() { return u; }
   CUDA INLINE constexpr const lb_type& lb() const { return l; }
   CUDA INLINE constexpr const ub_type& ub() const { return u; }
+
+  CUDA INLINE constexpr bool is_singleton() const {
+    return l == u && !l.is_bot() && !u.is_bot();
+  }
 
   CUDA INLINE constexpr bool is_bot() const {
     return l.is_bot() && u.is_bot();
@@ -344,7 +351,7 @@ public:
     else if(b.u < 0) { cdiv_num(a, b); }
     else { // TO CONFIRM: With the split on Z, this part becomes useless
       meet(qjoin(
-            top().cdiv_num(a, basic_type(b.l, -1))
+            top().cdiv_num(a, basic_type(b.l, -1)),
             top().fdiv_num(a, basic_type(1, b.u))));
     }
     return *this;
@@ -447,28 +454,31 @@ public:
 // Lattice operations
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> join(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
-  return a.join(b);
+CUDA INLINE constexpr ZInterval<VT, Mem> join(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+  a.join(b);
+  return a;
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> meet(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
-  return a.meet(b);
+CUDA INLINE constexpr ZInterval<VT, Mem> meet(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+  a.meet(b);
+  return a;
 }
 
 template <class VT, class Mem>
-CUDA constexpr ZInterval<VT, Mem> qjoin(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
-  return a.qjoin(b);
+CUDA INLINE constexpr ZInterval<VT, Mem> qjoin(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b) {
+  a.qjoin(b);
+  return a;
 }
 
 template<class VT, class Mem1, class Mem2>
-CUDA constexpr bool operator==(const ZInterval<VT, Mem1>& a, const ZInterval<VT, Mem2>& b)
+CUDA INLINE constexpr bool operator==(const ZInterval<VT, Mem1>& a, const ZInterval<VT, Mem2>& b)
 {
   return a.lb() == b.lb() && a.ub() == b.ub();
 }
 
 template<class VT, class Mem1, class Mem2>
-CUDA constexpr bool operator!=(const ZInterval<VT, Mem1>& a, const ZInterval<VT, Mem2>& b)
+CUDA INLINE constexpr bool operator!=(const ZInterval<VT, Mem1>& a, const ZInterval<VT, Mem2>& b)
 {
   return a.lb() != b.lb() || a.ub() != b.ub();
 }
@@ -476,6 +486,35 @@ CUDA constexpr bool operator!=(const ZInterval<VT, Mem1>& a, const ZInterval<VT,
 template<class VT, class Mem>
 std::ostream& operator<<(std::ostream &s, const ZInterval<VT, Mem> &itv) {
   return s << "[" << itv.lb() << "," << itv.ub() << "]";
+}
+
+namespace tell {
+
+template<class VT>
+CUDA INLINE constexpr bool zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  bool changed = x.add(y, z);
+  changed |= y.sub(x, z);
+  changed |= z.sub(x, y);
+  return changed;
+}
+
+template<class VT>
+CUDA INLINE constexpr bool zsub(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return zadd(y, x, z);
+}
+
+namespace ask {
+
+template<class VT>
+CUDA INLINE constexpr bool zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return (x.is_singleton() && y.is_singleton() && z.is_singleton() && x.lb() == y.lb() + z.lb());
+}
+
+template<class VT>
+CUDA INLINE constexpr bool zsub(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return zadd(y, x, z);
+}
+
 }
 
 } // namespace lala

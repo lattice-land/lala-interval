@@ -133,4 +133,42 @@ x = \textnormal{ediv}(y,z) \Leftrightarrow
 
 ### FInterval: Abstract Operations
 
-## Abstract Domain
+## Interval Bound Propagation
+
+We have implemented various interval propagators for ternary arithmetic constraints of the form $x = y \odot z$ where $\odot$ is a binary operator.
+The terminology of propagators stems from constraint programming, it is also sometimes called _filtering function_.
+In abstract interpretation, it is called _test_ in order to deal with conditional statement.
+
+| Constraint | Propagator | Best? |
+| ------------- | ------------- | ------------- |
+| $x = y + z$ | `tell::zadd(x, y, z)` | Yes |
+| $x = y - z$ | `tell::zsub(x, y, z)` | Yes |
+| $x = y * z$ | `tell::zmul(x, y, z)` | No |
+| $x = \textnormal{fdiv}(y, z)$ | `tell::fdiv(x, y, z)` | No |
+| $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | No |
+| $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | No |
+| $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | No |
+| $x = \textnormal{max}(y, z)$ | `tell::max(x, y, z)` | Yes |
+| $x = \textnormal{min}(y, z)$ | `tell::min(x, y, z)` | Yes |
+| $x = (y = z)$ | `tell::req(x, y, z)` | Yes |
+| $x = (y \leq z)$ | `tell::rleq(x, y, z)` | Yes |
+
+## Entailment Test
+
+| Constraint | Entailment test |
+| ------------- | ------------- |
+| $x = y + z$ | `ask::zadd(x, y, z)` |
+| $x = y - z$ | `ask::zsub(x, y, z)` |
+| $x = y * z$ | `ask::zmul(x, y, z)` |
+| $x = \textnormal{fdiv}(y, z)$ | `ask::fdiv(x, y, z)` |
+| $x = \textnormal{cdiv}(y, z)$ | `ask::cdiv(x, y, z)` |
+| $x = \textnormal{tdiv}(y, z)$ | `ask::tdiv(x, y, z)` |
+| $x = \textnormal{ediv}(y, z)$ | `ask::ediv(x, y, z)` |
+| $x = \textnormal{max}(y, z)$ | `ask::max(x, y, z)` |
+| $x = \textnormal{min}(y, z)$ | `ask::min(x, y, z)` |
+| $x = (y = z)$ | `ask::req(x, y, z)` |
+| $x = (y \leq z)$ | `ask::rleq(x, y, z)` |
+
+## Interval Abstract Domain
+
+
