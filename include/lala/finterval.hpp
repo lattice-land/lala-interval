@@ -3,9 +3,6 @@
 #ifndef LALA_INTERVAL_FINTERVAL_HPP
 #define LALA_INTERVAL_FINTERVAL_HPP
 
-#include "lb.hpp"
-#include "ub.hpp"
-
 namespace lala {
 
 template <class VT, class Mem = battery::local_memory>
@@ -58,7 +55,7 @@ public:
     CUDA INLINE constexpr const ub_type& ub() { return ub; }
 
     CUDA INLINE constexpr bool is_bot() const { 
-        return lb > ub || lb.is_bot() || ub.is_bot();
+        return lb.is_bot() && ub.is_bot();
     }
 
     CUDA INLINE constexpr bool is_top() const {
@@ -95,14 +92,26 @@ public:
         return leq(other) && (lb != other.lb || ub != other.ub);
     }
 
-    CUDA INLINE constexpr bool leqbot(basic_type other) const {
+    CUDA INLINE constexpr bool is_qbot() const {
+        return lb > ub || lb.is_bot() || ub.is_bot();
+    }
+
+    CUDA INLINE constexpr bool qjoin(basic_type other) {
+        // TODO: 
+        return;
+    }
+
+    CUDA INLINE constexpr bool qeq(basic_type other) {
         // TODO:
         return;
     }
 
-    CUDA INLINE constexpr bool ltbot(basic_type other) const {
-        // TODO:
-        return;
+    CUDA INLINE constexpr bool qleq(basic_type other) {
+        return is_qbot() || leq(other);
+    }
+
+    CUDA INLINE constexpr bool qlt(basic_type other) {
+        return (is_qbot() && !other.is_qbot()) || lt(other);
     }
 
     CUDA NI void print() const {
@@ -113,19 +122,105 @@ public:
         printf("]\n");
     }
 
-    CUDA constexpr value_type midpoint() const {
-        // TODO:
-        return;
+    CUDA constexpr value_type midpoint() const { 
+        // TODO: 
+        if(lb.is_top() && ub.is_top()) return 0.0;
+        if(lb.is_top()) return;
+        if(ub.is_top()) return;
+        return battery::midpoint(lb, ub);
     }
 
-    CUDA constexpr value_type width() const {
-        // if (!(is_bot() && is_top())) return value_type{-1.0};
-        // TODO: add a precondition.
-        return battery::sub_down(ub.load(), lb.load());
+    CUDA constexpr this_type width() const {
+        if(is_qbot()) return this_type{-1.0};
+        if(is_top()) return this_type{battery::limits<value_type>::inf()};
+        return this_type{battery::sub_down(ub, lb), battery::sub_up(ub, lb);
     }
 
     /** Abstract functions. */
-    // TODO: 
+    
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], -a)`.
+    CUDA INLINE constexpr this_type& neg(basic_type a) {
+        if(a.is_qbot()) return meet_bot();
+        lb.meet(-a.ub);
+        ub.meet(-a.lb);
+        return *this;
+    }
+
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], a + b)`.
+    CUDA INLINE constexpr this_type& add(basic_type a, basic_type b) {
+        if(a.is_qbot() || b.is_qbot()) return meet_bot();
+        lb.meet(battery::add_down(a.lb, b.lb));
+        ub.meet(battery::add_up(a.ub, b.ub));
+        return *this;
+    }
+
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], a - b)`.
+    CUDA INLINE constexpr this_type& sub(basic_type a, basic_type b) {
+        if(a.is_qbot() || b.is_qbot()) return meet_bot();
+        lb.meet(battery::sub_down(a.lb, b.ub));
+        ub.meet(battery::sub_up(a.ub, b.lb));
+        return *this;
+    }
+
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], a * b)`.
+    CUDA INLINE constexpr this_type& mul(basic_type a, basic_type b) {
+        if(a.is_qbot() || b.is_qbot()) return meet_bot();
+        value_type t1, t2, t3, t4, t5, t6, t7, t8;
+        t1 = battery::mul_down(a.lb, b.lb);
+        t2 = battery::mul_down(a.lb, b.ub);
+        t3 = battery::mul_down(a.ub, b.lb);
+        t4 = battery::mul_down(a.ub, b.ub);
+        t5 = battery::mul_up(a.lb, b.lb);
+        t6 = battery::mul_up(a.lb, b.ub);
+        t7 = battery::mul_up(a.ub, b.lb);
+        t8 = battery::mul_up(a.ub, b.lb);
+        lb.meet(battery::min(battery::min(t1, t2), battery::min(t3, t4)));
+        ub.meet(battery::max(battery::max(t5, t6), battery::max(t7, t8)));
+        return *this;
+    }
+
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], a / b)`.
+    CUDA INLINE constexpr this_type& div(basic_type a, basic_type b) {
+        if(b.lb <= 0.0 && b.ub => 0.0) return *this;
+        value_type t1, t2, t3, t4, t5, t6, t7, t8;
+        t1 = battery::div_down(a.lb, b.lb);
+        t2 = battery::div_down(a.lb, b.ub);
+        t3 = battery::div_down(a.ub, b.lb);
+        t4 = battery::div_down(a.ub, b.ub);
+        t5 = battery::div_up(a.lb, b.lb);
+        t6 = battery::div_up(a.lb, b.ub);
+        t7 = battery::div_up(a.ub, b.lb);
+        t8 = battery::div_up(a.ub, b.lb);
+        lb.meet(battery::min(battery::min(t1, t2), battery::min(t3, t4)));
+        ub.meet(battery::max(battery::max(t5, t6), battery::max(t7, t8)));
+        return *this;
+    }
+
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], min(a, b))`.
+    CUDA INLINE constexpr this_type& min(basic_type a, basic_type b) {
+        if(a.is_qbot() || b.is_qbot()) return meet_bot();
+        lb.meet(battery::min(a.lb, b.lb));
+        ub.meet(battery::min(a.ub, b.ub));
+        return *this;
+    }
+
+    // Backward operator: 
+    CUDA INLINE constexpr this_type& min_b(basic_type a, basic_type b) {
+        //TODO:
+        if()
+    }
+
+    // Given the current interval [lb, ub], this function computes `meet([lb, ub], max(a, b))`.
+    CUDA INLINE constexpr this_type& max(basic_type a, basic_type b) {
+        lb.meet(battery::max(a.lb, b.lb));
+        ub.meet(battery::max(a.ub, b.ub));
+        return *this;
+    }
+
+    // Backward operator: 
+    CUDA INLINE constexpr this_type& max_b(basic_type a, basic_type b) {
+        //TODO:
+    }
 };
 
 // Lattice operations

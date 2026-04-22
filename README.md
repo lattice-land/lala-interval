@@ -76,7 +76,6 @@ With the quotient join defined as:
     \end{cases}
 ```
 
-
 ### ZInterval: Abstract Operations
 
 Also known as _abstract transformers_ in the field of abstract interpretation.
@@ -86,19 +85,19 @@ In constraint programming, those operations can be used to design propagators, s
 
 In the following, we let `x,y,z` be integer intervals of type `ZInterval`.
 
-| Operation  | Constraint | Forward operator | Backward operator |
-| ------------- | ------------- | ------------- | ------------- |
-| Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` |
-| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` |
-| Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` and `z.sub(x,y)` |
-| Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` and `z.add(x,y)` |
-| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.mulb(x,z)` and `z.mulb(x,y)` |
-| Floor division | $x = \textnormal{fdiv}(y,z)$ | `x.fdiv(y, z)`[^1] | `y.fdiv_num(x, z)`[^1] and `z.fdiv_den(x,y)` |
-| Ceiling division | $x = \textnormal{cdiv}(y,z)$ | `x.cdiv(y, z)`[^1] | `y.cdiv_num(x, z)`[^1] and `z.cdiv_den(x,y)` |
-| Truncated division | $x = \textnormal{tdiv}(y,z)$ | `x.tdiv(y, z)`[^1] | `y.tdiv_num(x, z)`[^1] and `z.tdiv_den(x,y)` |
-| Euclidean division | $x = \textnormal{ediv}(y,z)$ | `x.ediv(y, z)`[^1] | `y.ediv_num(x, z)`[^1] and `z.ediv_den(x,y)` |
-| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.maxb(x,z)` and `z.maxb(x,y)` |
-| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.minb(x,z)` and `z.minb(x,y)` |
+| Operation  | Constraint | Forward operator | Left backward operator | Right backward operator |
+| ------------- | ------------- | ------------- | ------------- | ------------- |
+| Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` | n/a |
+| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` | n/a |
+| Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` | `z.sub(x,y)` |
+| Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` | `z.sub(y,x)` |
+| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.mul_back(x,z)` | `z.mul_back(x,y)` |
+| Floor division | $x = \textnormal{fdiv}(y,z)$ | `x.fdiv(y, z)`[^1] | `y.fdiv_num(x, z)`[^1] | `z.fdiv_den(x,y)` |
+| Ceiling division | $x = \textnormal{cdiv}(y,z)$ | `x.cdiv(y, z)`[^1] | `y.cdiv_num(x, z)`[^1] | `z.cdiv_den(x,y)` |
+| Truncated division | $x = \textnormal{tdiv}(y,z)$ | `x.tdiv(y, z)`[^1] | `y.tdiv_num(x, z)`[^1] | `z.tdiv_den(x,y)` |
+| Euclidean division | $x = \textnormal{ediv}(y,z)$ | `x.ediv(y, z)`[^1] | `y.ediv_num(x, z)`[^1] | `z.ediv_den(x,y)` |
+| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_back(x,z)` | `z.max_back(x,y)` |
+| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_back(x,z)` | `z.min_back(x,y)` |
 
 #### Semantics of Division Operators
 
@@ -132,6 +131,19 @@ x = \textnormal{ediv}(y,z) \Leftrightarrow
 [^1]: Precondition: the lower and upper bounds of the denominator `z` must be different from zero.
 
 ### FInterval: Abstract Operations
+
+In the following, we let `x,y,z` be integer intervals of type `FInterval`.
+
+| Operation  | Constraint | Forward operator | Backward operator |
+| ------------- | ------------- | ------------- | ------------- |
+| Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` |
+| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` |
+| Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` and `z.sub(x,y)` |
+| Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` and `z.sub(y,x)` |
+| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.div(x,z)` and `z.div(x,y)` |
+| Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` and `z.div(y,x)` |
+| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_b(x,z)` and `z.max_b(x,y)` |
+| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_b(x,z)` and `z.min_b(x,y)` |
 
 ## Interval Bound Propagation
 
@@ -171,4 +183,4 @@ In abstract interpretation, it is called _test_ in order to deal with conditiona
 
 ## Interval Abstract Domain
 
-
+## Abstract Domain

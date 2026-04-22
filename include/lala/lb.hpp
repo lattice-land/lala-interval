@@ -27,11 +27,11 @@ public:
 private:
   atomic_type value;
 
-  CUDA INLINE static constexpr this_type neg_inf() {
+  CUDA INLINE static constexpr value_type neg_inf() {
     return battery::limits<value_type>::neg_inf();
   }
 
-  CUDA INLINE static constexpr this_type inf() {
+  CUDA INLINE static constexpr value_type inf() {
     return battery::limits<value_type>::inf();
   }
 
@@ -39,14 +39,19 @@ public:
   CUDA INLINE static constexpr this_type bot() { return inf(); }
   CUDA INLINE static constexpr this_type top() { return neg_inf(); }
 
-  CUDA constexpr LB(): value(top()) {}
+  CUDA constexpr LB(): value(neg_inf()) {}
   CUDA constexpr LB(value_type x): value(x) {}
 
+  CUDA constexpr LB(const this_type& other): value(other.load()) {}
   template <class Mem2>
   CUDA constexpr LB(const LB<value_type, Mem2>& other): value(other.load()) {}
 
-  constexpr LB(const this_type& other) = default;
   constexpr LB(this_type&& other) = default;
+
+  CUDA INLINE constexpr this_type& operator=(const this_type& other) {
+    memory_type::store(value, other.load());
+    return *this;
+  }
 
   CUDA INLINE constexpr this_type& operator=(value_type other) {
     memory_type::store(value, other);
@@ -69,7 +74,7 @@ public:
   }
 
   CUDA INLINE constexpr void join_top() {
-    memory_type::store(value, top());
+    memory_type::store(value, neg_inf());
   }
 
   CUDA INLINE constexpr bool join(basic_type other) {
@@ -81,7 +86,7 @@ public:
   }
 
   CUDA INLINE constexpr void meet_bot() {
-    memory_type::store(value, bot());
+    memory_type::store(value, inf());
   }
 
   CUDA INLINE constexpr bool meet(basic_type other) {
