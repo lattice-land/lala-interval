@@ -156,14 +156,16 @@ In abstract interpretation, it is called _test_ in order to deal with conditiona
 | $x = y + z$ | `tell::zadd(x, y, z)` | Yes |
 | $x = y - z$ | `tell::zsub(x, y, z)` | Yes |
 | $x = y * z$ | `tell::zmul(x, y, z)` | No |
-| $x = \textnormal{fdiv}(y, z)$ | `tell::fdiv(x, y, z)` | No |
-| $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | No |
-| $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | No |
-| $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | No |
+| $x = \textnormal{fdiv}(y, z)$ | `tell::fdiv(x, y, z)` | Yes[^2] |
+| $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | Yes[^2] |
+| $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | Yes[^2] |
+| $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | Yes[^2] |
 | $x = \textnormal{max}(y, z)$ | `tell::max(x, y, z)` | Yes |
 | $x = \textnormal{min}(y, z)$ | `tell::min(x, y, z)` | Yes |
 | $x = (y = z)$ | `tell::req(x, y, z)` | Yes |
 | $x = (y \leq z)$ | `tell::rleq(x, y, z)` | Yes |
+
+[^2]: best propagators from experimental results only (conjecture). Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
 
 ## Entailment Test
 

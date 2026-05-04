@@ -542,35 +542,86 @@ CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 }
 
 template<class VT>
-CUDA INLINE constexpr void fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr void fdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
   x.fdiv(y, z);
-  y.fdiv_num(x, z);
   z.fdiv_den(x, y);
+  y.fdiv_num(x, z);
+  z.neq_zero();
+  x.fdiv(y, z);
+}
+
+template<class VT>
+CUDA INLINE constexpr void cdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  z.neq_zero();
+  x.cdiv(y, z);
+  z.cdiv_den(x, y);
+  y.cdiv_num(x, z);
+  z.neq_zero();
+  x.cdiv(y, z);
+}
+
+template<class VT>
+CUDA INLINE constexpr void tdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  z.neq_zero();
+  x.tdiv(y, z);
+  z.tdiv_den(x, y);
+  y.tdiv_num(x, z);
+  z.neq_zero();
+  x.tdiv(y, z);
+}
+
+template<class VT>
+CUDA INLINE constexpr void ediv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  z.neq_zero();
+  x.ediv(y, z);
+  z.ediv_den(x, y);
+  y.ediv_num(x, z);
+  z.neq_zero();
+  x.ediv(y, z);
+}
+
+template <class VT, class Prop>
+CUDA void splitjoin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z, ZInterval<VT>& r, VT a, Prop prop) {
+  using battery::min;
+  using battery::max;
+  if(!r.contains(a) || r.is_singleton()) {
+    prop(x, y, z);
+  }
+  else {
+    ZInterval<VT> r2(r);
+    r.ub() = min<VT>(r.ub(), a - VT{1});
+    ZInterval<VT> x2(x), y2(y), z2(z); // note: must be declared after modifying `r` since `r` is either x, y, or z.
+    prop(x2, y2, z2);
+    r = r2;
+    r.lb() = max<VT>(r.lb(), a);
+    prop(x, y, z);
+    if(x2.is_bot() || y2.is_bot() || z2.is_bot()) { return; }
+    if(x.is_bot() || y.is_bot() || z.is_bot()) { x = x2; y = y2; z = z2; return; }
+    x.join(x2);
+    y.join(y2);
+    z.join(z2);
+  }
+}
+
+template<class VT>
+CUDA INLINE constexpr void fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  splitjoin(x, y, z, z, 0, fdiv_fast<VT>);
 }
 
 template<class VT>
 CUDA INLINE constexpr void cdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  z.neq_zero();
-  x.cdiv(y, z);
-  y.cdiv_num(x, z);
-  z.cdiv_den(x, y);
+  splitjoin(x, y, z, z, 0, cdiv_fast<VT>);
 }
 
 template<class VT>
 CUDA INLINE constexpr void tdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  z.neq_zero();
-  x.tdiv(y, z);
-  y.tdiv_num(x, z);
-  z.tdiv_den(x, y);
+  splitjoin(x, y, z, z, 0, tdiv_fast<VT>);
 }
 
 template<class VT>
 CUDA INLINE constexpr void ediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  z.neq_zero();
-  x.ediv(y, z);
-  y.ediv_num(x, z);
-  z.ediv_den(x, y);
+  splitjoin(x, y, z, z, 0, ediv_fast<VT>);
 }
 
 } // namespace tell
