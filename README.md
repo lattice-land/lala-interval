@@ -98,6 +98,8 @@ In the following, we let `x,y,z` be integer intervals of type `ZInterval`.
 | Euclidean division | $x = \textnormal{ediv}(y,z)$ | `x.ediv(y, z)`[^1] | `y.ediv_num(x, z)`[^1] | `z.ediv_den(x,y)` |
 | Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_back(x,z)` | `z.max_back(x,y)` |
 | Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_back(x,z)` | `z.min_back(x,y)` |
+| Reified Equality | $x = (y = z)$ | `x.req(y, z)`[^2] | `y.req_back(x,z)`[^2] | `z.req_back(x,y)`[^2] |
+| Reified Inequality | $x = (y \leq z)$ | `x.rleq(y, z)`[^2] | `y.rleq_lback(x,z)`[^2] | `z.rleq_rback(x,y)`[^2] |
 
 #### Semantics of Division Operators
 
@@ -129,21 +131,22 @@ x = \textnormal{ediv}(y,z) \Leftrightarrow
 ```
 
 [^1]: Precondition: the lower and upper bounds of the denominator `z` must be different from zero.
+[^2]: Precondition: the domain of `x` must be included in `[0,1]`.
 
 ### FInterval: Abstract Operations
 
 In the following, we let `x,y,z` be integer intervals of type `FInterval`.
 
-| Operation  | Constraint | Forward operator | Backward operator |
-| ------------- | ------------- | ------------- | ------------- |
-| Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` |
-| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` |
-| Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` and `z.sub(x,y)` |
-| Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` and `z.sub(y,x)` |
-| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.div(x,z)` and `z.div(x,y)` |
-| Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` and `z.div(y,x)` |
-| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_b(x,z)` and `z.max_b(x,y)` |
-| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_b(x,z)` and `z.min_b(x,y)` |
+| Operation  | Constraint | Forward operator | Left backward operator | Right backward operator |
+| ------------- | ------------- | ------------- | ------------- | ------------- |
+| Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` | n/a |
+| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` | n/a |
+| Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` | `z.sub(x,y)` |
+| Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` | `z.sub(y,x)` |
+| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.div(x,z)` | `z.div(x,y)` |
+| Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` | `z.div(y,x)` |
+| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_b(x,z)` | `z.max_b(x,y)` |
+| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_b(x,z)` | `z.min_b(x,y)` |
 
 ## Interval Bound Propagation
 
@@ -160,12 +163,12 @@ In abstract interpretation, it is called _test_ in order to deal with conditiona
 | $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | Yes[^2] |
 | $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | Yes[^2] |
 | $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | Yes[^2] |
-| $x = \textnormal{max}(y, z)$ | `tell::max(x, y, z)` | Yes |
-| $x = \textnormal{min}(y, z)$ | `tell::min(x, y, z)` | Yes |
-| $x = (y = z)$ | `tell::req(x, y, z)` | Yes |
-| $x = (y \leq z)$ | `tell::rleq(x, y, z)` | Yes |
+| $x = \textnormal{max}(y, z)$ | `tell::zmax(x, y, z)` | Yes |
+| $x = \textnormal{min}(y, z)$ | `tell::zmin(x, y, z)` | Yes |
+| $x = (y = z)$ | `tell::zreq(x, y, z)` | Yes |
+| $x = (y \leq z)$ | `tell::zrleq(x, y, z)` | Yes |
 
-[^2]: best propagators from experimental results only (conjecture). Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
+[^2]: This is currently a conjecture from experimental results. Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
 
 ## Entailment Test
 
@@ -178,10 +181,10 @@ In abstract interpretation, it is called _test_ in order to deal with conditiona
 | $x = \textnormal{cdiv}(y, z)$ | `ask::cdiv(x, y, z)` |
 | $x = \textnormal{tdiv}(y, z)$ | `ask::tdiv(x, y, z)` |
 | $x = \textnormal{ediv}(y, z)$ | `ask::ediv(x, y, z)` |
-| $x = \textnormal{max}(y, z)$ | `ask::max(x, y, z)` |
-| $x = \textnormal{min}(y, z)$ | `ask::min(x, y, z)` |
-| $x = (y = z)$ | `ask::req(x, y, z)` |
-| $x = (y \leq z)$ | `ask::rleq(x, y, z)` |
+| $x = \textnormal{max}(y, z)$ | `ask::zmax(x, y, z)` |
+| $x = \textnormal{min}(y, z)$ | `ask::zmin(x, y, z)` |
+| $x = (y = z)$ | `ask::zreq(x, y, z)` |
+| $x = (y \leq z)$ | `ask::zrleq(x, y, z)` |
 
 ## Interval Abstract Domain
 

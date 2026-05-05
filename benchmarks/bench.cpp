@@ -16,7 +16,7 @@
 
 #include "lala/zinterval.hpp"
 
-enum Sig { ADD, SUB, MUL, TDIV, FDIV, CDIV, EDIV };
+enum Sig { ADD, SUB, MUL, TDIV, FDIV, CDIV, EDIV, MIN, MAX, RLEQ, REQ };
 
 using namespace lala;
 
@@ -30,6 +30,10 @@ value_t op(value_t a, Sig op, value_t b) {
     case CDIV: return battery::cdiv(a, b);
     case FDIV: return battery::fdiv(a, b);
     case EDIV: return battery::ediv(a, b);
+    case MIN: return battery::min(a, b);
+    case MAX: return battery::max(a, b);
+    case REQ: return a == b ? 1 : 0;
+    case RLEQ: return a <= b ? 1 : 0;
     default: assert(false); return a;
   }
 }
@@ -58,14 +62,15 @@ bool is_div(Sig sig) {
 
 template <class Itv>
 size_t concrete_propagation(Sig sig, Itv& r1, Itv& r2, Itv& r3) {
+  using VT = typename Itv::value_type;
   Itv x2 = Itv::bot();
   Itv y2 = Itv::bot();
   Itv z2 = Itv::bot();
   size_t num_sol = 0;
-  for(int b = r2.lb(); b <= r2.ub(); ++b) {
-    for(int c = r3.lb(); c <= r3.ub(); ++c) {
+  for(VT b = r2.lb(); b <= r2.ub(); ++b) {
+    for(VT c = r3.lb(); c <= r3.ub(); ++c) {
       if((!is_div(sig) || c != 0)) {
-        int a = op(b, sig, c);
+        VT a = op(b, sig, c);
         if(r1.contains(a)) {
           x2.join(Itv(a,a));
           y2.join(Itv(b,b));
@@ -229,7 +234,11 @@ int propagate(Sig sig, Itv x, Itv y, Itv z,
 enum PropKind {
   FP,
   FDP,
+  FXP,
   FDPP,
+  FDFP,
+  FXFP,
+  FULLSPLIT,
   DPP,
   DP,
   P,
@@ -245,6 +254,10 @@ const char* sig_to_string(Sig sig) {
     case CDIV: return "CDIV";
     case TDIV: return "TDIV";
     case EDIV: return "EDIV";
+    case MIN: return "MIN";
+    case MAX: return "MAX";
+    case RLEQ: return "RLEQ";
+    case REQ: return "REQ";
     default: return "UNKNOWN_SIG";
   }
 }
@@ -253,7 +266,11 @@ const char* prop_kind_to_string(PropKind prop_kind) {
   switch(prop_kind) {
     case FP: return "FP";
     case FDP: return "FDP";
+    case FXP: return "FXP";
     case FDPP: return "FDPP";
+    case FDFP: return "FDFP";
+    case FXFP: return "FXFP";
+    case FULLSPLIT: return "FULLSPLIT";
     case DPP: return "DPP";
     case DP: return "DP";
     case P: return "P";
@@ -276,6 +293,9 @@ int wrap_propagate(PropKind prop_kind, Sig sig, Itv x, Itv y, Itv z,
     case FDP: return propagate(sig, x, y, z, stats,
       [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, z, VT{0}, p); },
       ask);
+    case FXP: return propagate(sig, x, y, z, stats,
+      [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, x, VT{0}, p); },
+      ask);
     case DP: return propagate(sig, x, y, z, stats,
       [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, z, VT{0}, p); },
       ask,
@@ -283,6 +303,20 @@ int wrap_propagate(PropKind prop_kind, Sig sig, Itv x, Itv y, Itv z,
     case FDPP: return propagate(sig, x, y, z, stats,
       [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, z, VT{0},
         [&p](Itv& x, Itv& y, Itv& z) { p(x, y, z); p(x, y, z); }); },
+      ask);
+    case FDFP: return propagate(sig, x, y, z, stats,
+      [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, z, VT{0},
+        [&p](Itv& x, Itv& y, Itv& z) { gfp(x, y, z, p); }); },
+      ask);
+    case FXFP: return propagate(sig, x, y, z, stats,
+      [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, x, VT{0},
+        [&p](Itv& x, Itv& y, Itv& z) { gfp(x, y, z, p); }); },
+      ask);
+    case FULLSPLIT: return propagate(sig, x, y, z, stats,
+      [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, y, y.lb().load(),
+        [&p](Itv& x, Itv& y, Itv& z) { gfp(x, y, z,
+        [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, x, x.lb().load(),
+          [&p](Itv& x, Itv& y, Itv& z) { gfp(x,y,z,p); }); }); }); },
       ask);
     case DPP: return propagate(sig, x, y, z, stats,
       [&p](Itv& x, Itv& y, Itv& z) { tell::splitjoin(x, y, z, z, VT{0},
@@ -305,10 +339,15 @@ void benchmark(const char* itv_name, bool csv) {
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
     // {ADD, FP},
     // {SUB, FP},
+    // {MUL, P},
     // {MUL, FP},
+    // {MUL, DP},
+    // {MUL, FDPP},
+    // {MUL, FDP},
+    // {MUL, FXP},
     // {FDIV, FP},
     // {CDIV, FP},
-    {TDIV, FP},
+    // {TDIV, FP},
     // {EDIV, FP},
     // {FDIV, P},
     // {CDIV, P},
@@ -316,8 +355,12 @@ void benchmark(const char* itv_name, bool csv) {
     // {EDIV, P},
     // {FDIV, DP},
     // {CDIV, DP},
-    {TDIV, DP},
+    // {TDIV, DP},
     // {EDIV, DP},
+    {MIN, P},
+    {MAX, P},
+    {REQ, FP},
+    {RLEQ, FP},
   };
   for(auto [sig, prop_kind] : prop_kinds) {
     std::vector<Statistics> stats_list(omp_get_max_threads());
@@ -328,7 +371,7 @@ void benchmark(const char* itv_name, bool csv) {
     int64_t concrete_propag_ns = 0;
     // int max = 40;
     // for(int bound = 0; bound <= max; ++bound) {
-    if(true) { int bound = 15;
+    if(true) { int bound = 20;
       Itv x = Itv(-bound, bound);
       Itv y = Itv(-bound, bound);
       Itv z = Itv(-bound, bound);
@@ -358,6 +401,10 @@ void benchmark(const char* itv_name, bool csv) {
           case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::cdiv_fast<value_type>, ask::cdiv<value_type>); break;
           case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::tdiv_fast<value_type>, ask::tdiv<value_type>); break;
           case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::ediv_fast<value_type>, ask::ediv<value_type>); break;
+          case MIN: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmin<value_type>, ask::zmin<value_type>); break;
+          case MAX: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmax<value_type>, ask::zmax<value_type>); break;
+          case REQ: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zreq<value_type>, ask::zreq<value_type>); break;
+          case RLEQ: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zrleq<value_type>, ask::zrleq<value_type>); break;
           default: printf("ERROR!\n"); exit(1);
         }
         #pragma omp atomic
@@ -390,8 +437,10 @@ void benchmark(const char* itv_name, bool csv) {
   }
 }
 
+#define RANGEITV 100000
+
 template <class Itv, class URNG>
-Itv random_interval(URNG& rng, int min_v = -100000, int max_v = 100000) {
+Itv random_interval(URNG& rng, int min_v = -RANGEITV, int max_v = RANGEITV) {
   std::uniform_int_distribution<int> coin(0, 99);
   std::uniform_int_distribution<int> val(min_v, max_v);
   std::uniform_int_distribution<int> smallw(0, 8);
@@ -434,7 +483,7 @@ Itv random_interval(URNG& rng, int min_v = -100000, int max_v = 100000) {
 }
 
 template <class Itv, class URNG>
-Itv random_divisor_interval(URNG& rng, int min_v = -100000, int max_v = 100000) {
+Itv random_divisor_interval(URNG& rng, int min_v = -RANGEITV, int max_v = RANGEITV) {
   std::uniform_int_distribution<int> coin(0, 99);
   std::uniform_int_distribution<int> val(min_v, max_v);
   std::uniform_int_distribution<int> pos(1, max_v);
@@ -483,14 +532,15 @@ void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 
   using value_type = typename Itv::value_type;
 
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
-    {FDIV, P},
-    {CDIV, P},
-    {TDIV, P},
-    {EDIV, P},
-    {FDIV, DP},
-    {CDIV, DP},
-    {TDIV, DP},
-    {EDIV, DP},
+    // {FDIV, P},
+    // {CDIV, P},
+    // {TDIV, P},
+    // {EDIV, P},
+    // {FDIV, DP},
+    // {CDIV, DP},
+    // {TDIV, DP},
+    // {EDIV, DP},
+    {MUL, FP}
   };
 
   for(auto [sig, prop_kind] : prop_kinds) {
@@ -512,8 +562,18 @@ void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 
         Itv b = random_divisor_interval<Itv>(rng); // divisor-specialized
         Itv c = random_interval<Itv>(rng);
 
+        // OVERFLOW??
+// Unsound propagator for x=[-91892,18002] y=[-87476,30591] z=[70381,70381]
+// 	Concrete x=[-70381,0] y=[-61025,0] z=[70381,70381]
+// 	Abstract x=[-70381,0] y=[-1,0] z=[70381,70381]
+
+
         int r = 0;
         switch(sig) {
+          case MUL:
+            r = wrap_propagate(prop_kind, sig, a, b, c,
+              stats_list[tid], tell::zmul<value_type>, ask::zmul<value_type>);
+            break;
           case FDIV:
             r = wrap_propagate(prop_kind, sig, a, b, c,
               stats_list[tid], tell::fdiv<value_type>, ask::fdiv<value_type>);
@@ -582,7 +642,7 @@ int main(int argc, char** argv) {
   if(csv) {
     printf("abstract_domain,operation,propagator,width,total,not_best,not_best_percentage,best,best_percentage,concrete_time_ms,abstract_time_ms,bottom_propagations,bottom_propagations_percent,bottom_concrete_propagations,bottom_concrete_propagations_percent,idempotent_propagations,idempotent_propagations_percent,incomplete_ask,incomplete_ask_percent,fixpoint_iterations_dict\n");
   }
-  // benchmark_random_division<ZInterval<int>>("ZInterval<int>", csv);
+  // benchmark_random_division<ZInterval<long long>>("ZInterval<long long>", csv);
   benchmark<ZInterval<int>>("ZInterval<int>", csv);
   // benchmark<ZInterval<long long>>("ZInterval<long long>", csv);
   // benchmark<ZInterval<float>>("ZInterval<float>", csv);

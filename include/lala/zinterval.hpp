@@ -228,7 +228,7 @@ public:
 
   // Let a = b * x, `mul_back_nz` computes the interval of `x` given a and b, without caring about the case where `0 notin a` (taken care of by `mul_back_zero`).
   // Why exposing `mul_back_zero` and `mul_back_nz` when we already have `mulb`?
-  //   When implementing a propagator for `x = y * z`, it results in faster convergence to compute `z.mul_back_zero(x) ; y.mul_back_nz(x,z) ; y.mul_back_zero(x); z.mul_back_nz(x,y); ` instead of `y.mulb(x,z); z.mulb(x,y);` (if both were merged).
+  //   When implementing a propagator for `x = y * z`, it results in faster convergence to compute `z.mul_back_zero(x) ; y.mul_back_nz(x,z) ; y.mul_back_zero(x); z.mul_back_nz(x,y); ` instead of `y.mul_back(x,z); z.mul_back(x,y);` (if both were merged).
   CUDA INLINE constexpr this_type& mul_back_nz(basic_type a, basic_type b) {
     using battery::min;
     using battery::max;
@@ -252,6 +252,7 @@ public:
   CUDA INLINE constexpr this_type& mul_back(basic_type a, basic_type b) {
     mul_back_zero(a);
     mul_back_nz(a, b);
+    return *this;
   }
 
   CUDA INLINE constexpr this_type& min(basic_type a, basic_type b) {
@@ -282,6 +283,73 @@ public:
     if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
     if(a.l > b.u) { l.meet(a.l); }
     u.meet(a.u);
+    return *this;
+  }
+
+  // Let x = (a = b), we update x according to a and b.
+  // precondition: x <= [0,1]
+  CUDA INLINE constexpr this_type& req(basic_type a, basic_type b) {
+    if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
+    if(a.l == b.u && a.u == b.l) {
+      l.meet(VT{1});
+    }
+    else if(a.lb() > b.ub() || a.ub() < b.lb()) {
+      u.meet(VT{0});
+    }
+    return *this;
+  }
+
+  // Let a = (b = x), we update x according to a and b.
+  // precondition: a <= [0,1]
+  CUDA INLINE constexpr this_type& req_back(basic_type a, basic_type b) {
+    if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
+    if(a.l == VT{1}) {
+      l.meet(b.l);
+      u.meet(b.u);
+    }
+    else if(a.u == VT{0} && b.l == b.u) {
+      if(l == b.l) { l.meet(l + VT{1}); }
+      if(u == b.u) { u.meet(u - VT{1}); }
+    }
+    return *this;
+  }
+
+  // Let x = (a <= b), we update x according to a and b.
+  // precondition: x <= [0,1]
+  CUDA INLINE constexpr this_type& rleq(basic_type a, basic_type b) {
+    if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
+    if(a.u <= b.l) {
+      l.meet(VT{1});
+    }
+    else if(a.lb() > b.ub()) {
+      u.meet(VT{0});
+    }
+    return *this;
+  }
+
+  // Let a = (x <= b), we update x according to a and b.
+  // precondition: a <= [0,1]
+  CUDA INLINE constexpr this_type& rleq_lback(basic_type a, basic_type b) {
+    if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
+    if(a.l == VT{1}) {
+      u.meet(b.u);
+    }
+    else if(a.u == VT{0}) {
+      l.meet(b.l + VT{1});
+    }
+    return *this;
+  }
+
+  // Let a = (b <= x), we update x according to a and b.
+  // precondition: a <= [0,1]
+  CUDA INLINE constexpr this_type& rleq_rback(basic_type a, basic_type b) {
+    if(a.is_qbot() || b.is_qbot()) { return meet_bot(); }
+    if(a.l == VT{1}) {
+      l.meet(b.l);
+    }
+    else if(a.u == VT{0}) {
+      u.meet(b.u - VT{1});
+    }
     return *this;
   }
 
@@ -539,6 +607,7 @@ CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   y.mul_back_nz(x, z);
   y.mul_back_zero(x);
   z.mul_back_nz(x, y);
+  x.mul(y, z);
 }
 
 template<class VT>
@@ -601,27 +670,58 @@ CUDA void splitjoin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z, ZInter
     x.join(x2);
     y.join(y2);
     z.join(z2);
+    prop(x,y,z);
   }
 }
 
 template<class VT>
 CUDA INLINE constexpr void fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, 0, fdiv_fast<VT>);
+  splitjoin(x, y, z, z, VT{0}, fdiv_fast<VT>);
 }
 
 template<class VT>
 CUDA INLINE constexpr void cdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, 0, cdiv_fast<VT>);
+  splitjoin(x, y, z, z, VT{0}, cdiv_fast<VT>);
 }
 
 template<class VT>
 CUDA INLINE constexpr void tdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, 0, tdiv_fast<VT>);
+  splitjoin(x, y, z, z, VT{0}, tdiv_fast<VT>);
 }
 
 template<class VT>
 CUDA INLINE constexpr void ediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, 0, ediv_fast<VT>);
+  splitjoin(x, y, z, z, VT{0}, ediv_fast<VT>);
+}
+
+template<class VT>
+CUDA INLINE constexpr void zmin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  x.min(y, z);
+  y.min_back(x, z);
+  z.min_back(x, y);
+}
+
+template<class VT>
+CUDA INLINE constexpr void zmax(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  x.max(y, z);
+  y.max_back(x, z);
+  z.max_back(x, y);
+}
+
+template<class VT>
+CUDA INLINE constexpr void zreq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  x.meet(ZInterval<VT>(VT{0}, VT{1}));
+  x.req(y, z);
+  y.req_back(x, z);
+  z.req_back(x, y);
+}
+
+template<class VT>
+CUDA INLINE constexpr void zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  x.meet(ZInterval<VT>(VT{0}, VT{1}));
+  x.rleq(y, z);
+  y.rleq_lback(x, z);
+  z.rleq_rback(x, y);
 }
 
 } // namespace tell
@@ -643,8 +743,8 @@ template<class VT>
 CUDA INLINE constexpr bool zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
     (x.is_singleton() &&
-      (y.is_singleton() && z.is_singleton() && x.lb() == y.lb() * z.lb()) ||
-      (x.lb() == 0 && (y.is_singleton(0) || z.is_singleton(0))));
+      ((y.is_singleton() && z.is_singleton() && x.lb() == y.lb() * z.lb()) ||
+      (x.lb() == VT{0} && (y.is_singleton(0) || z.is_singleton(0)))));
 }
 
 template<class VT>
@@ -652,7 +752,7 @@ CUDA INLINE constexpr bool fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::fdiv<VT>(y.lb(), z.lb())) ||
-             (x.lb() == 0 && y.lb() == 0))); // 0 = 0 / z (for any z != 0).
+             (x.lb() ==  VT{0} && y.lb() ==  VT{0}))); // 0 = 0 / z (for any z != 0).
 }
 
 template<class VT>
@@ -660,7 +760,7 @@ CUDA INLINE constexpr bool cdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::cdiv<VT>(y.lb(), z.lb())) ||
-             (x.lb() == 0 && y.lb() == 0))); // 0 = 0 / z (for any z != 0).
+             (x.lb() ==  VT{0} && y.lb() ==  VT{0}))); // 0 = 0 / z (for any z != 0).
 }
 
 template<class VT>
@@ -668,7 +768,7 @@ CUDA INLINE constexpr bool tdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::tdiv<VT>(y.lb(), z.lb())) ||
-             (x.lb() == 0 && y.lb() == 0))); // 0 = 0 / z (for any z != 0).
+             (x.lb() ==  VT{0} && y.lb() ==  VT{0}))); // 0 = 0 / z (for any z != 0).
 }
 
 template<class VT>
@@ -676,9 +776,37 @@ CUDA INLINE constexpr bool ediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::ediv<VT>(y.lb(), z.lb())) ||
-             (x.lb() == 0 && y.lb() == 0))); // 0 = 0 / z (for any z != 0).
+             (x.lb() ==  VT{0} && y.lb() ==  VT{0}))); // 0 = 0 / z (for any z != 0).
 }
 
+template<class VT>
+CUDA INLINE constexpr bool zmin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
+    (x.lb() == y.ub() && x.ub() == y.lb() && y.ub() <= z.lb()) ||
+    (x.lb() == z.ub() && x.ub() == z.lb() && z.ub() <= y.lb());
+}
+
+template<class VT>
+CUDA INLINE constexpr bool zmax(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
+    (x.lb() == y.ub() && x.ub() == y.lb() && y.lb() >= z.ub()) ||
+    (x.lb() == z.ub() && x.ub() == z.lb() && z.lb() >= y.ub());
+}
+
+// precondition: x <= [0,1]
+template<class VT>
+CUDA INLINE constexpr bool zreq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
+    (x.lb() == VT{1} && y.ub() == z.lb() && y.lb() == z.ub()) ||
+    (x.ub() == VT{0} && (y.ub() < z.lb() || y.lb() > z.ub()));
+}
+
+template<class VT>
+CUDA INLINE constexpr bool zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  return x.is_qbot() || y.is_qbot() || z.is_qbot() ||
+    (x.lb() == VT{1} && y.ub() <= z.lb()) ||
+    (x.ub() == VT{0} && y.lb() > z.ub());
+}
 
 } // namespace ask
 
