@@ -10,16 +10,16 @@ namespace lala {
 
 template <class VT, class Mem = battery::local_memory>
 class FInterval {
-public: 
+public:
     using value_type = VT;
-    using memory_type = Mem; 
+    using memory_type = Mem;
     using lb_type = LB<value_type, memory_type>;
     using ub_type = UB<value_type, memory_type>;
     using this_type = FInterval<value_type, memory_type>;
     using basic_type = FInterval<value_type>;
 
     template <class VT2, class Mem2>
-    friend class FInterval; 
+    friend class FInterval;
 
     constexpr static const bool is_totally_ordered = false;
     constexpr static const char* name = "FInterval";
@@ -29,7 +29,7 @@ private:
     ub_type u;
 
 public:
-    CUDA INLINE static constexpr this_type bot() { return this_type(lb_type::bot(), ub_type::bot()); } 
+    CUDA INLINE static constexpr this_type bot() { return this_type(lb_type::bot(), ub_type::bot()); }
     CUDA INLINE static constexpr this_type top() { return this_type(lb_type::top(), ub_type::top()); }
 
     constexpr FInterval() = default;
@@ -38,7 +38,7 @@ public:
     CUDA constexpr FInterval(value_type l, value_type u): l(l), u(u) {}
 
     template <class Mem2>
-    CUDA constexpr FInterval(const FInterval<value_type, Mem2>& other) 
+    CUDA constexpr FInterval(const FInterval<value_type, Mem2>& other)
      : l(other.l)
      , u(other.u)
     {}
@@ -46,9 +46,9 @@ public:
     constexpr this_type& operator=(const this_type&) = default;
     template <class Mem2>
     CUDA INLINE constexpr this_type& operator=(const FInterval<value_type, Mem2>& other) {
-        l = other.l;
-        u = other.u;
-        return *this;
+      l = other.l;
+      u = other.u;
+      return *this;
     }
 
     CUDA INLINE constexpr lb_type& lb() { return l; }
@@ -64,7 +64,7 @@ public:
       return l <= v && v <= u && width().ub() <= 1e-6;
     }
 
-    CUDA INLINE constexpr bool is_bot() const { 
+    CUDA INLINE constexpr bool is_bot() const {
         return l.is_bot() && u.is_bot();
     }
 
@@ -148,7 +148,7 @@ public:
     }
 
     /** precondition: `!is_qbot()` */
-    CUDA constexpr value_type midpoint() const { 
+    CUDA constexpr value_type midpoint() const {
       if(l.is_top() && u.is_top()) return 0.0;
       if(l.is_top()) return battery::limits<value_type>::neg_inf();
       if(u.is_top()) return battery::limits<value_type>::inf();
@@ -404,7 +404,6 @@ CUDA INLINE constexpr void frleq(FInterval<VT>& x, FInterval<VT>& y, FInterval<V
 }
 
 }
-
 
 namespace ask {
 

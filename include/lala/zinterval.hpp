@@ -321,7 +321,7 @@ public:
     if(a.u <= b.l) {
       l.meet(VT{1});
     }
-    else if(a.lb() > b.ub()) {
+    else if(a.l > b.u) {
       u.meet(VT{0});
     }
     return *this;

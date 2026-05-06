@@ -1,7 +1,7 @@
 # Interval Reasoning
 
 This library provides several abstract domains for interval reasoning over integer and real numbers.
-We aim to be general enough to be reused across domains, here what is this library for in different domains:
+We aim to be general enough to be reused across fields:
 
 * [Constraint programming](https://en.wikipedia.org/wiki/Constraint_programming): Enforce _bound(Z)_ and _bound(R)_ consistencies on interval domains (see e.g. [Choi et al. 2006](https://arxiv.org/pdf/cs/0412021)).
 * [Abstract interpretation](https://en.wikipedia.org/wiki/Abstract_interpretation): Provide interval abstractions of integer and real numbers, including forward and backward interval arithmetics (see e.g. [Cousot, 2021](https://mitpress.mit.edu/9780262044905/principles-of-abstract-interpretation/)).
@@ -12,7 +12,7 @@ We aim to be general enough to be reused across domains, here what is this libra
 
 We propose abstractions of the universe of discourse of integers $\mathbb{Z}$ and real numbers $\mathbb{R}$.
 Let $\mathbb{A}$ be either $\mathbb{Z}$ or $\mathbb{R}$.
-The following abstractions are approximating a subset of the universe of discourse.
+The following abstractions are approximating any subset of the universe of discourse:
 
 * **Lower bound abstract universe**: `LB` approximates a set $S \subseteq \mathbb{A}$ by taking its lower bound $\mathit{min}~S$ if it is a bounded set, and $-\infty$ otherwise.
 * **Upper bound abstract universe**: `UB` approximates a set $S \subseteq \mathbb{A}$ by taking its upper bound $\mathit{max}~S$ if it is a bounded set, and $\infty$ otherwise.
@@ -46,7 +46,7 @@ The following operations are mostly there for optimization purposes, but could b
 | Bottom test | $a = \bot$ | `a.is_bot()` |
 | Top test | $a = \top$ | `a.is_top()` |
 
-### Extra Interval Quotient Lattice Operations
+### Extra Operations Over the Interval Quotient Lattice
 
 In this library, the bottom element of the interval abstract universe is $[\infty, -\infty]$ where infinities are represented as noted above (using `std::numeric_limits`).
 In particular, we do not do anything special with empty intervals ($[\ell, u]$ where $\ell > u$) and the lattice operations are well-defined on those, e.g. $[1,0] \sqcap [0,10] = [\textnormal{max}(1,0), \textnormal{min}(0,10)] = [1, 0]$.
@@ -76,10 +76,12 @@ With the quotient join defined as:
     \end{cases}
 ```
 
+Note that operations equivalent in both lattices are not redefined, e.g. the `meet` operation.
+
 ### ZInterval: Abstract Operations
 
 Also known as _abstract transformers_ in the field of abstract interpretation.
-In constraint programming, those operations can be used to design propagators, see below.
+In constraint programming, those operations can be used to design _propagators_, see below.
 
 *Note*: To project the interval of an expression, e.g. `y + z`, initialize the result variable to top (e.g. `ZInterval<int> x;`) and call the forward operator on it: `x.add(y,z)`.
 
@@ -151,24 +153,24 @@ In the following, we let `x,y,z` be integer intervals of type `FInterval`.
 ## Interval Bound Propagation
 
 We have implemented various interval propagators for ternary arithmetic constraints of the form $x = y \odot z$ where $\odot$ is a binary operator.
-The terminology of propagators stems from constraint programming, it is also sometimes called _filtering function_.
-In abstract interpretation, it is called _test_ in order to deal with conditional statement.
+The terminology "propagators" stems from constraint programming, it is also sometimes called _filtering function_.
+In abstract interpretation, it is usually called _test_ in order to deal with conditional statement.
 
 | Constraint | Propagator | Best? |
 | ------------- | ------------- | ------------- |
 | $x = y + z$ | `tell::zadd(x, y, z)` | Yes |
 | $x = y - z$ | `tell::zsub(x, y, z)` | Yes |
 | $x = y * z$ | `tell::zmul(x, y, z)` | No |
-| $x = \textnormal{fdiv}(y, z)$ | `tell::fdiv(x, y, z)` | Yes[^2] |
-| $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | Yes[^2] |
-| $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | Yes[^2] |
-| $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | Yes[^2] |
+| $x = \textnormal{fdiv}(y, z)$ | `tell::fdiv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | Yes[^3] |
 | $x = \textnormal{max}(y, z)$ | `tell::zmax(x, y, z)` | Yes |
 | $x = \textnormal{min}(y, z)$ | `tell::zmin(x, y, z)` | Yes |
 | $x = (y = z)$ | `tell::zreq(x, y, z)` | Yes |
 | $x = (y \leq z)$ | `tell::zrleq(x, y, z)` | Yes |
 
-[^2]: This is currently a conjecture from experimental results. Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
+[^3]: This is currently a conjecture from experimental results. Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
 
 ## Entailment Test
 
