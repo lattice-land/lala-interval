@@ -56,17 +56,9 @@ public:
   CUDA INLINE constexpr const lb_type& lb() const { return l; }
   CUDA INLINE constexpr const ub_type& ub() const { return u; }
 
-    CUDA INLINE constexpr bool is_approx_singleton() const {
-      return !l.is_bot() && !u.is_top() && width().ub() <= 1e-6;
-    }
-
-    CUDA INLINE constexpr bool is_approx_singleton(value_type v) const {
-      return l <= v && v <= u && width().ub() <= 1e-6;
-    }
-
-    CUDA INLINE constexpr bool is_bot() const {
-        return l.is_bot() && u.is_bot();
-    }
+  CUDA INLINE constexpr bool is_bot() const {
+      return l.is_bot() && u.is_bot();
+  }
 
   CUDA INLINE constexpr bool is_top() const {
       return l.is_top() && u.is_top();
