@@ -372,7 +372,10 @@ CUDA INLINE constexpr void freq(FInterval<VT>& x, FInterval<VT>& y, FInterval<VT
   constexpr VT ONE{1.0};
   if (x.lb() == ZERO && x.ub() < ONE) x.meet(FInterval<VT>(ZERO, ZERO));
   else if (x.lb() > ZERO && x.ub() == ONE) x.meet(FInterval<VT>(ONE, ONE));
-  else if (x.lb() > ZERO && x.ub() < ONE)  x.join(FInterval<VT>(ZERO, ONE));
+  else if (x.lb() > ZERO && x.ub() < ONE) {
+    x.meet_bot();
+    return;
+  }
   x.req(y, z);
   y.req_back(x, z);
   z.req_back(x, y);
@@ -384,7 +387,10 @@ CUDA INLINE constexpr void frleq(FInterval<VT>& x, FInterval<VT>& y, FInterval<V
   constexpr VT ONE{1.0};
   if (x.lb() == ZERO && x.ub() < ONE) x.meet(FInterval<VT>(ZERO, ZERO));
   else if (x.lb() > ZERO && x.ub() == ONE) x.meet(FInterval<VT>(ONE, ONE));
-  else if (x.lb() > ZERO && x.ub() < ONE) x.join(FInterval<VT>(ZERO, ONE));
+  else if (x.lb() > ZERO && x.ub() < ONE) {
+    x.meet_bot();
+    return;
+  }
   x.rleq(y, z);
   y.rleq_lback(x, z);
   z.rleq_rback(x, y);
