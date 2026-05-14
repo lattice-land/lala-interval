@@ -45,42 +45,31 @@ The following operations are mostly there for optimization purposes, but could b
 | Join top | $a \sqcup \top$ | `a.join_top()` (in-place) |
 | Bottom test | $a = \bot$ | `a.is_bot()` |
 | Top test | $a = \top$ | `a.is_top()` |
-| Concrete bottom test | true if $\gamma(a) = \{\}$, false otherwise | `a.is_cbot()` |
 
-The _concrete bottom test_ supposes the existence of a concretization function $\gamma: L \to \mathcal{P}(U)$ where $U$ is the universe of discourse.
-For the interval universe, the concrete bottom test corresponds to `a.is_qbot()` defined below with $\gamma([\ell,u]) = \{v \in U \;|\; \ell \leq v \leq u\}$
+### Interval Lattice
 
-### Extra Operations Over the Interval Quotient Lattice
+In this library, the bottom element of the interval abstract universe is the equivalence class of all empty intervals $\set{[\ell,u] \;|\; \ell > u }$, the function `is_bot` is `true` on all such intervals.
 
-In this library, the bottom element of the interval abstract universe is $[\infty, -\infty]$ where infinities are represented as noted above (using `std::numeric_limits`).
-In particular, we do not do anything special with empty intervals ($[\ell, u]$ where $\ell > u$) and the lattice operations are well-defined on those, e.g. $[1,0] \sqcap [0,10] = [\textnormal{max}(1,0), \textnormal{min}(0,10)] = [1, 0]$.
-However, it is sometimes preferable to consider all empty intervals as a unique bottom element, in which case intervals are the set $\set{[\ell, u] \;|\; \ell \leq u} \cup \set{\bot}$ in which $\bot$ is a special element.
-This is the typical implementation in abstract interpretation.
-
-This library gives users both options: considering $[\infty, -\infty]$ as the only bottom element, or viewing all empty intervals as an equivalence class equal to $\bot$.
-The first is given by the "standard" lattice operations described above.
-The second is given by the "quotient" lattice operations described in the following table (prefixed by "q").
-
-| Operation  | Mathematical definition | Programming notation |
+| Operation  | Implementation | Programming notation |
 | ------------- | ------------- | ------------- |
-| Quotient bottom test  | $\textnormal{isqbot}([\ell, u]) \triangleq \ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_qbot()` |
-| Quotient partial order | $a \leq b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qleq(b)` |
-| Strict quotient partial order | $a < b \land \textnormal{isqbot}(a) \neq \textnormal{isqbot}(b)$ | `a.qlt(b)` |
-| Quotient Join | $\textnormal{qjoin}(a,b)$ (see below) | `qjoin(a,b)` or `a.qjoin(b)` (in-place) |
-| Quotient Equality | $a = b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qeq(b)` |
+| Bottom test  | $\textnormal{isbot}([\ell, u]) \triangleq \ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_bot()` |
+| Partial order | $\textnormal{isbot}(a) \lor a \leq b$ | `a.leq(b)` |
+| Strict partial order | $(\textnormal{isbot}(a) \land \lnot \textnormal{isbot}(b)) \lor a < b$ | `a.lt(b)` |
+| Quotient Join | $\textnormal{join}(a,b)$ (see below) | `join(a,b)` or `a.join(b)` (in-place) |
+| Quotient Equality | $(\textnormal{isbot}(a) \land \textnormal{isbot}(b)) \lor a = b$ | `a.eq(b)` |
 
-With the quotient join defined as:
+With the join defined as:
 ```math
-  \textnormal{qjoin}(x, y) \triangleq
+  \textnormal{join}(x, y) \triangleq
     \begin{cases}
-        \bot &\text{if } \textnormal{isqbot}(x) \land \textnormal{isqbot}(y) \\
-        y &\text{if } \textnormal{isqbot}(x) \\
-        x &\text{if } \textnormal{isqbot}(y) \\
+        x &\text{if } \textnormal{isbot}(y) \\
+        y &\text{if } \textnormal{isbot}(x) \\
         x \sqcup y & \text{otherwise }
     \end{cases}
 ```
 
-Note that operations equivalent in both lattices are not redefined, e.g. the `meet` operation.
+The lattice operations must take care of the cases where one or both arguments are in this equivalence class.
+Sometimes, we are sure none of the arguments is bottom, hence we provide more efficient versions named `*_nobot`.
 
 ### ZInterval: Abstract Operations
 

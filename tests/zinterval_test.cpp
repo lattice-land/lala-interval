@@ -25,6 +25,8 @@ void generic_ZITV_test() {
   join_meet_generic_test(ITV(-1, 1), ITV(-5, 5));
   join_meet_generic_test(ITV(-1, 1), ITV::top());
   join_meet_generic_test(ITV::bot(), ITV(-5, 5));
+  join_meet_generic_test(ITV(1,0), ITV(-5, 5));
+  join_meet_generic_test(ITV(10,-10), ITV(-5, 5));
 }
 
 TEST(ZITVTest, LatticeOperation) {

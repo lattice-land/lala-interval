@@ -53,7 +53,7 @@ void join_meet_generic_test(const A& a, const A& b) {
   // Commutativity
   meet_one_test(a, b, a, false);
   meet_one_test(b, a, a, a != b);
-  // Absorbing
+  // // Absorbing
   meet_one_test(a, A::top(), a, false);
   meet_one_test(b, A::top(), b, false);
   join_one_test(a, A::top(), A::top(), !a.is_top());

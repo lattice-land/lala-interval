@@ -243,8 +243,8 @@ public:
   // precondition: x <= [0, 1]
   CUDA INLINE constexpr this_type& req(basic_type a, basic_type b) {
     if (a.is_qbot() || b.is_qbot()) return meet_bot();
-    if (a.l == b.u && a.u == b.l) l.meet(ONE);
-    else if (a.l > b.u || a.u < b.l) u.meet(ZERO);
+    if (a.l == b.u && a.u == b.l) l.meet(VT{1.0});
+    else if (a.l > b.u || a.u < b.l) u.meet(VT{0.0});
     return *this;
   }
 
@@ -252,7 +252,7 @@ public:
   // precondition: a <= [0, 1]
   CUDA INLINE constexpr this_type& req_back(basic_type a, basic_type b) {
     if (a.is_qbot() || b.is_qbot()) return meet_bot();
-    if (a.l == ONE) {
+    if (a.l == VT{1.0}) {
       l.meet(b.l);
       u.meet(b.u);
     }
@@ -263,8 +263,8 @@ public:
   // precondition: x <= [0, 1]
   CUDA INLINE constexpr this_type& rleq(basic_type a, basic_type b) {
     if (a.is_qbot() || b.is_qbot()) return meet_bot();
-    if (a.u <= b.l) l.meet(ONE);
-    else if (a.l() > b.u) u.meet(ZERO);
+    if (a.u <= b.l) l.meet(VT{1.0});
+    else if (a.l() > b.u) u.meet(VT{0.0});
     return *this;
   }
 
@@ -272,8 +272,8 @@ public:
   // precondition: a <= [0, 1]
   CUDA INLINE constexpr this_type& rleq_lback(basic_type a, basic_type b) {
     if (a.is_qbot() || b.is_qbot()) return meet_bot();
-    if (a.l == ONE) u.meet(b.u);
-    else if (a.u == ZERO) l.meet(b.l);
+    if (a.l == VT{1.0}) u.meet(b.u);
+    else if (a.u == VT{0.0}) l.meet(b.l);
     return *this;
   }
 
@@ -281,8 +281,8 @@ public:
   // precondition: a <= [0, 1]
   CUDA INLINE constexpr this_type& rleq_rback(basic_type a, basic_type b) {
     if (a.is_qbot() || b.is_qbot()) return meet_bot();
-    if (a.l == ONE) l.meet(b.l);
-    else if (a.u == ZERO) u.meet(b.u);
+    if (a.l == VT{1.0}) l.meet(b.l);
+    else if (a.u == VT{0.0}) u.meet(b.u);
     return *this;
   }
 };
@@ -368,11 +368,9 @@ CUDA INLINE constexpr void fmax(FInterval<VT>& x, FInterval<VT>& y, FInterval<VT
 
 template<class VT>
 CUDA INLINE constexpr void freq(FInterval<VT>& x, FInterval<VT>& y, FInterval<VT>& z) {
-  constexpr VT ZERO{0.0};
-  constexpr VT ONE{1.0};
-  if (x.lb() == ZERO && x.ub() < ONE) x.meet(FInterval<VT>(ZERO, ZERO));
-  else if (x.lb() > ZERO && x.ub() == ONE) x.meet(FInterval<VT>(ONE, ONE));
-  else if (x.lb() > ZERO && x.ub() < ONE) {
+  if (x.lb() == VT{0.0} && x.ub() < VT{1.0}) x.meet(FInterval<VT>(VT{0.0}, VT{0.0}));
+  else if (x.lb() > VT{0.0} && x.ub() == VT{1.0}) x.meet(FInterval<VT>(VT{1.0}, VT{1.0}));
+  else if (x.lb() > VT{0.0} && x.ub() < VT{1.0}) {
     x.meet_bot();
     return;
   }
@@ -383,11 +381,9 @@ CUDA INLINE constexpr void freq(FInterval<VT>& x, FInterval<VT>& y, FInterval<VT
 
 template<class VT>
 CUDA INLINE constexpr void frleq(FInterval<VT>& x, FInterval<VT>& y, FInterval<VT>& z) {
-  constexpr VT ZERO{0.0};
-  constexpr VT ONE{1.0};
-  if (x.lb() == ZERO && x.ub() < ONE) x.meet(FInterval<VT>(ZERO, ZERO));
-  else if (x.lb() > ZERO && x.ub() == ONE) x.meet(FInterval<VT>(ONE, ONE));
-  else if (x.lb() > ZERO && x.ub() < ONE) {
+  if (x.lb() == VT{0.0} && x.ub() < VT{1.0}) x.meet(FInterval<VT>(VT{0.0}, VT{0.0}));
+  else if (x.lb() > VT{0.0} && x.ub() == VT{1.0}) x.meet(FInterval<VT>(VT{1.0}, VT{1.0}));
+  else if (x.lb() > VT{0.0} && x.ub() < VT{1.0}) {
     x.meet_bot();
     return;
   }
@@ -397,7 +393,6 @@ CUDA INLINE constexpr void frleq(FInterval<VT>& x, FInterval<VT>& y, FInterval<V
 }
 
 }
-
 
 namespace ask {
 

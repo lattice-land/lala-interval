@@ -53,6 +53,12 @@ public:
     return *this;
   }
 
+  template <class Mem2>
+  CUDA INLINE constexpr this_type& operator=(const LB<VT, Mem2>& other) {
+    memory_type::store(value, other.load());
+    return *this;
+  }
+
   CUDA INLINE constexpr this_type& operator=(value_type other) {
     memory_type::store(value, other);
     return *this;
