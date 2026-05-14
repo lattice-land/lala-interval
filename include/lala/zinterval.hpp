@@ -78,6 +78,10 @@ public:
     return l.is_bot() && u.is_bot();
   }
 
+  CUDA INLINE constexpr bool is_cbot() const {
+    return is_qbot();
+  }
+
   CUDA INLINE constexpr bool is_top() const {
     return l.is_top() && u.is_top();
   }
@@ -665,8 +669,8 @@ CUDA void splitjoin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z, ZInter
     r = r2;
     r.lb() = max<VT>(r.lb(), a);
     prop(x, y, z);
-    if(x2.is_bot() || y2.is_bot() || z2.is_bot()) { return; }
-    if(x.is_bot() || y.is_bot() || z.is_bot()) { x = x2; y = y2; z = z2; return; }
+    if(x2.is_qbot() || y2.is_qbot() || z2.is_qbot()) { return; }
+    if(x.is_qbot() || y.is_qbot() || z.is_qbot()) { x = x2; y = y2; z = z2; return; }
     x.join(x2);
     y.join(y2);
     z.join(z2);

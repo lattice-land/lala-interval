@@ -45,6 +45,10 @@ The following operations are mostly there for optimization purposes, but could b
 | Join top | $a \sqcup \top$ | `a.join_top()` (in-place) |
 | Bottom test | $a = \bot$ | `a.is_bot()` |
 | Top test | $a = \top$ | `a.is_top()` |
+| Concrete bottom test | true if $\gamma(a) = \{\}$, false otherwise | `a.is_cbot()` |
+
+The _concrete bottom test_ supposes the existence of a concretization function $\gamma: L \to \mathcal{P}(U)$ where $U$ is the universe of discourse.
+For the interval universe, the concrete bottom test corresponds to `a.is_qbot()` defined below with $\gamma([\ell,u]) = \{v \in U \;|\; \ell \leq v \leq u\}$
 
 ### Extra Operations Over the Interval Quotient Lattice
 
@@ -62,7 +66,7 @@ The second is given by the "quotient" lattice operations described in the follow
 | Quotient bottom test  | $\textnormal{isqbot}([\ell, u]) \triangleq \ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_qbot()` |
 | Quotient partial order | $a \leq b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qleq(b)` |
 | Strict quotient partial order | $a < b \land \textnormal{isqbot}(a) \neq \textnormal{isqbot}(b)$ | `a.qlt(b)` |
-| Quotient Join | $\textnormal{qjoin}(a,b)$ | `qjoin(a,b)` or `a.qjoin(b)` (in-place) |
+| Quotient Join | $\textnormal{qjoin}(a,b)$ (see below) | `qjoin(a,b)` or `a.qjoin(b)` (in-place) |
 | Quotient Equality | $a = b \lor (\textnormal{isqbot}(a) \land \textnormal{isqbot}(b))$ | `a.qeq(b)` |
 
 With the quotient join defined as:
@@ -190,4 +194,3 @@ In abstract interpretation, it is usually called _test_ in order to deal with co
 
 ## Interval Abstract Domain
 
-## Abstract Domain
