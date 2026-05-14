@@ -49,14 +49,15 @@ The following operations are mostly there for optimization purposes, but could b
 ### Interval Lattice
 
 In this library, the bottom element of the interval abstract universe is the equivalence class of all empty intervals $\set{[\ell,u] \;|\; \ell > u }$, the function `is_bot` is `true` on all such intervals.
+We give the corresponding definition of the lattice operations.
 
-| Operation  | Implementation | Programming notation |
+| Operation  | Definition | Programming notation |
 | ------------- | ------------- | ------------- |
-| Bottom test  | $\textnormal{isbot}([\ell, u]) \triangleq \ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_bot()` |
-| Partial order | $\textnormal{isbot}(a) \lor a \leq b$ | `a.leq(b)` |
-| Strict partial order | $(\textnormal{isbot}(a) \land \lnot \textnormal{isbot}(b)) \lor a < b$ | `a.lt(b)` |
-| Quotient Join | $\textnormal{join}(a,b)$ (see below) | `join(a,b)` or `a.join(b)` (in-place) |
-| Quotient Equality | $(\textnormal{isbot}(a) \land \textnormal{isbot}(b)) \lor a = b$ | `a.eq(b)` |
+| $\textnormal{isbot}([\ell, u])$ | $\ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_bot()` |
+| $[\ell, u] \leq [\ell', u']$ | $\textnormal{isbot}([\ell, u]) \lor (\ell \geq \ell' \land u \leq u')$ | `a.leq(b)` |
+| $[\ell, u] < [\ell', u']$ | $(\textnormal{isbot}([\ell, u]) \land \lnot \textnormal{isbot}([\ell', u'])) \lor ([\ell, u] \leq [\ell', u'] \land (\ell \neq \ell' \lor u \neq u'))$ | `a.lt(b)` |
+| $[\ell, u] \sqcup [\ell', u']$ | $\textnormal{join}(a,b)$ (see below) | `join(a,b)` or `a.join(b)` (in-place) |
+| $[\ell, u] = [\ell', u']$ | $(\textnormal{isbot}([\ell, u]) \land \textnormal{isbot}([\ell', u'])) \lor (\ell = \ell' \land u = u')$ | `a.eq(b)` |
 
 With the join defined as:
 ```math
