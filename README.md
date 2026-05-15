@@ -48,29 +48,30 @@ The following operations are mostly there for optimization purposes, but could b
 
 ### Interval Lattice
 
-In this library, the bottom element of the interval abstract universe is the equivalence class of all empty intervals $\set{[\ell,u] \;|\; \ell > u }$, the function `is_bot` is `true` on all such intervals.
-We give the corresponding definition of the lattice operations.
+In this library, the bottom element of the interval abstract universe denotes the equivalence class of all empty intervals $\set{[\ell,u] \;|\; \ell > u }$, the function `is_bot` is `true` on all such intervals.
+The lattice operations are defined in the following table.
 
 | Operation  | Definition | Programming notation |
 | ------------- | ------------- | ------------- |
 | $\textnormal{isbot}([\ell, u])$ | $\ell > u \lor \ell = \infty \lor u = -\infty$ | `a.is_bot()` |
-| $[\ell, u] \leq [\ell', u']$ | $\textnormal{isbot}([\ell, u]) \lor (\ell \geq \ell' \land u \leq u')$ | `a.leq(b)` |
-| $[\ell, u] < [\ell', u']$ | $(\textnormal{isbot}([\ell, u]) \land \lnot \textnormal{isbot}([\ell', u'])) \lor ([\ell, u] \leq [\ell', u'] \land (\ell \neq \ell' \lor u \neq u'))$ | `a.lt(b)` |
-| $[\ell, u] \sqcup [\ell', u']$ | $\textnormal{join}(a,b)$ (see below) | `join(a,b)` or `a.join(b)` (in-place) |
 | $[\ell, u] = [\ell', u']$ | $(\textnormal{isbot}([\ell, u]) \land \textnormal{isbot}([\ell', u'])) \lor (\ell = \ell' \land u = u')$ | `a.eq(b)` |
+| $[\ell, u] \leq [\ell', u']$ | $\textnormal{isbot}([\ell, u]) \lor (\ell \geq \ell' \land u \leq u')$ | `a.leq(b)` |
+| $a < b$ | $a \leq b \land \lnot (a = b)$ | `a.lt(b)` |
+| $[\ell, u] \sqcap [\ell', u']$ | $[\max(\ell, \ell'), \min(u,u')]$ | `meet(a,b)` or `a.meet(b)` (in-place) |
+| $a \sqcup b$ | $\textnormal{join}(a,b)$ (see below) | `join(a,b)` or `a.join(b)` (in-place) |
 
 With the join defined as:
 ```math
-  \textnormal{join}(x, y) \triangleq
+  \textnormal{join}([\ell, u], [\ell', u']) \triangleq
     \begin{cases}
-        x &\text{if } \textnormal{isbot}(y) \\
-        y &\text{if } \textnormal{isbot}(x) \\
-        x \sqcup y & \text{otherwise }
+        [\ell, u] &\text{if } \textnormal{isbot}([\ell', u']) \\
+        [\ell', u'] &\text{if } \textnormal{isbot}([\ell, u]) \\
+        [\min(\ell, \ell'), \max(u, u')] & \text{otherwise}
     \end{cases}
 ```
 
-The lattice operations must take care of the cases where one or both arguments are in this equivalence class.
-Sometimes, we are sure none of the arguments is bottom, hence we provide more efficient versions named `*_nobot`.
+The lattice operations must take care of the cases where the arguments are in the bottom equivalence class.
+If the user is sure none of the arguments is bottom, we provide more efficient versions named `*_nobot` (e.g. `join_nobot`) which simplifies the definition above by ignoring the bottom cases.
 
 ### ZInterval: Abstract Operations
 
