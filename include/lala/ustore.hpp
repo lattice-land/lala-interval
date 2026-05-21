@@ -6,6 +6,56 @@
 
 namespace lala {
 
+/** A variable identifier is a pair (aty, index) such that `index` is the index of the variable inside the abstract domain identified with `aty` (abstract type). */
+template <class ValueType = int, int num_bits_aty = 5>
+class VarID {
+public:
+  using value_type = ValueType;
+
+private:
+  value_type value;
+
+public:
+  CUDA constexpr VarID(): value(-1) {}
+  constexpr VarID(const VarID&) = default;
+  constexpr VarID(VarID&&) = default;
+  constexpr VarID& operator=(const VarID&) = default;
+  constexpr VarID& operator=(VarID&&) = default;
+  CUDA constexpr bool operator==(const VarID& other) const {
+    return value == other.value;
+  }
+  CUDA constexpr bool operator!=(const VarID& other) const {
+    return value != other.value;
+  }
+
+  CUDA constexpr VarID(value_type atype, value_type idx): value((idx << num_bits_aty) | atype) {
+    assert(atype >= 0);
+    assert(idx >= 0);
+    assert(atype < (1 << num_bits_aty));
+    assert(idx < (1 << (sizeof(value_type)*8 - num_bits_aty - 1))); // -1 bit because we use -1 to represent "unknown ID", hence negative numbers are not used.
+  }
+
+  CUDA constexpr static value_type untyped() {
+    return -1;
+  }
+
+  CUDA constexpr bool is_unknown() const {
+    return value == -1;
+  }
+
+  CUDA constexpr value_type aty() const {
+    return is_unknown() ? -1 : (value & ((1 << num_bits_aty) - 1));
+  }
+
+  CUDA constexpr value_type idx() const {
+    return is_unknown() ? -1 : value >> num_bits_aty;
+  }
+
+  CUDA constexpr void type_as(value_type atype) {
+    value = (vid() << num_bits_aty) | atype;
+  }
+};
+
 /** The universe store abstract domain is a _domain transformer_ built on top of an abstract universe `U`.
 Concretization function: \f$ \gamma(\rho) := \bigcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
 The bot element is smashed and the equality between two stores is represented by the following equivalence relation, for two stores \f$ S \f$ and \f$ T \f$:
@@ -23,15 +73,18 @@ For instance, \f$ \langle 1 \rangle.\mathit{meet}(\langle \bot, 4 \rangle) \f$ w
 Template parameters:
   - `U` is the type of the abstract universe.
   - `Allocator` is the allocator of the underlying array of universes.
+  - `VarIDType` is the type of the variable's identifier.
   - `MemType` is the type of memory used to represent a private Boolean member denoting whether the store is bot or not.
 */
-template<class U, class Allocator, class MemType = typename U::memory_type>
+template<class U, class Allocator, class VarIDType = VarID<>, class MemType = typename U::memory_type>
 class UStore {
 public:
   using universe_type = U;
   using basic_universe = typename universe_type::basic_type;
   using allocator_type = Allocator;
   using this_type = UStore<universe_type, allocator_type>;
+  using memory_type = MemType;
+  using id_type = typename VarIDType::value_type;
 
   constexpr static const bool is_totally_ordered = false;
   constexpr static const char* name = "UStore";
@@ -39,12 +92,10 @@ public:
   template<class U2, class Alloc2>
   friend class UStore;
 
-  using AType = int;
 private:
   using store_type = battery::vector<universe_type, allocator_type>;
-  using memory_type = MemType;
 
-  AType atype;
+  id_type atype;
   store_type data;
   LB<bool, memory_type> is_at_bot;
 
@@ -55,16 +106,16 @@ public:
 
   /** Initialize an empty store (top element). */
   CUDA UStore(const allocator_type& alloc = allocator_type())
-   : atype(-1), data(alloc), is_at_bot(false)
+   : atype(VarIDType::untyped()), data(alloc), is_at_bot(false)
   {}
 
   /** Initialize an empty store (top element). */
-  CUDA UStore(AType atype, const allocator_type& alloc = allocator_type())
+  CUDA UStore(id_type atype, const allocator_type& alloc = allocator_type())
    : atype(atype), data(alloc), is_at_bot(false)
   {}
 
   /** Initialize a store of size `n`. */
-  CUDA UStore(AType atype, size_t n, const allocator_type& alloc = allocator_type())
+  CUDA UStore(id_type atype, size_t n, const allocator_type& alloc = allocator_type())
    : atype(atype), data(n, alloc), is_at_bot(false)
   {}
 
@@ -91,7 +142,7 @@ public:
     return data.get_allocator();
   }
 
-  CUDA int aty() const {
+  CUDA id_type aty() const {
     return atype;
   }
 
@@ -99,14 +150,14 @@ public:
     return data.size();
   }
 
-  CUDA static this_type top(AType atype = -1,
+  CUDA static this_type top(id_type atype = VarIDType::untyped(),
     const allocator_type& alloc = allocator_type{})
   {
     return UStore(atype, alloc);
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type bot(AType atype = -1,
+  CUDA static this_type bot(AType atype = VarIDType::untyped(),
     const allocator_type& alloc = allocator_type{})
   {
     auto s = UStore{atype, alloc};

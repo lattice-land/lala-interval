@@ -147,8 +147,12 @@ In the following, we let `x,y,z` be integer intervals of type `FInterval`.
 ## Interval Bound Propagation
 
 We have implemented various interval propagators for ternary arithmetic constraints of the form $x = y \odot z$ where $\odot$ is a binary operator.
-The terminology "propagators" stems from constraint programming, it is also sometimes called _filtering function_.
+The term "propagator" stems from constraint programming, it is also sometimes called _filtering function_.
 In abstract interpretation, it is usually called _test_ in order to deal with conditional statement.
+
+### Propagators on ZInterval
+
+Let `x,y,z` be integer intervals of type `ZInterval`.
 
 | Constraint | Propagator | Best? |
 | ------------- | ------------- | ------------- |
@@ -166,7 +170,9 @@ In abstract interpretation, it is usually called _test_ in order to deal with co
 
 [^3]: This is currently a conjecture from experimental results. Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
 
-## Entailment Test
+### Entailment Test on ZInterval
+
+Let `x,y,z` be integer intervals of type `ZInterval`.
 
 | Constraint | Entailment test |
 | ------------- | ------------- |
@@ -182,5 +188,24 @@ In abstract interpretation, it is usually called _test_ in order to deal with co
 | $x = (y = z)$ | `ask::zreq(x, y, z)` |
 | $x = (y \leq z)$ | `ask::zrleq(x, y, z)` |
 
-## Interval Abstract Domain
+## Abstract Domain
+
+An _abstract domain_ is an abstraction of a set of assignments $\mathcal{P}(X \to U)$ where $X$ is a set of variables and $U$ the universe of discourse.
+It essentially extends the concept of abstract universe with variables.
+
+### UStore Abstract Domain
+
+The _universe store abstract domain_ `UStore` is an array of universes $X \to A$ where $X = \set{0, 1, \ldots, n}$ and $A$ is a parametric abstract universe.
+In abstract interpretation, `UStore<ZInterval<int>>` is called the _interval abstract domain_ (can also be defined over `FInterval`).
+
+Let `L` be a `UStore` abstract domain with any underlying abstract universe.
+
+| Operation  | Mathematical notation | Programming notation |
+| ------------- | ------------- | ------------- |
+| Bottom  | $\bot$ | `L::bot()` |
+| Top  | $\top$ | `L::top()` or default constructor `L()` |
+| Partial order | $a \leq b$ | `a.leq(b)` |
+| Strict partial order | $a < b$ | `a.lt(b)` |
+| Meet | $a \sqcap b$ | `meet(a,b)` or `a.meet(b)` (in-place) |
+| Join | $a \sqcup b$ | `join(a,b)` or `a.join(b)` (in-place) |
 
