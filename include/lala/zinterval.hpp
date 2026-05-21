@@ -79,13 +79,13 @@ public:
   }
 
   CUDA INLINE constexpr bool join(basic_type other) {
-    int mask = (is_bot() ? 0 : 1) | (other.is_bot() ? 0 : 2);
-    switch(mask) {
-      case 0:
-      case 1: return false;
-      case 2: l = other.l; u = other.u; return true;
-      default: return join_nobot(other);
+    if(other.is_bot()) { return false; }
+    if(is_bot()) {
+      l = other.l;
+      u = other.u;
+      return true;
     }
+    return join_nobot(other);
   }
 
   CUDA INLINE constexpr bool eq(basic_type other) const {
@@ -97,7 +97,7 @@ public:
   }
 
   CUDA INLINE constexpr bool lt(basic_type other) const {
-    return (is_bot() && !other.is_bot()) || lt_nobot(other);
+    return leq(other) && !eq(other);
   }
 
   CUDA INLINE constexpr bool is_top() const {

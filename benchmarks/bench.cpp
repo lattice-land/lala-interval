@@ -16,7 +16,7 @@
 
 #include "lala/zinterval.hpp"
 
-enum Sig { ADD, SUB, MUL, TDIV, FDIV, CDIV, EDIV, MIN, MAX, RLEQ, REQ };
+enum Sig { ADD, SUB, MULDIV, MUL, TDIV, FDIV, CDIV, EDIV, MIN, MAX, RLEQ, REQ };
 
 using namespace lala;
 
@@ -25,6 +25,7 @@ value_t op(value_t a, Sig op, value_t b) {
   switch(op) {
     case ADD: return a + b;
     case SUB: return a - b;
+    case MULDIV:
     case MUL: return a * b;
     case TDIV: return battery::tdiv(a, b);
     case CDIV: return battery::cdiv(a, b);
@@ -250,6 +251,7 @@ const char* sig_to_string(Sig sig) {
     case ADD: return "ADD";
     case SUB: return "SUB";
     case MUL: return "MUL";
+    case MULDIV: return "MULDIV";
     case FDIV: return "FDIV";
     case CDIV: return "CDIV";
     case TDIV: return "TDIV";
@@ -337,26 +339,15 @@ void benchmark(const char* itv_name, bool csv) {
   // exit(1);
 
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
-    // {ADD, FP},
-    // {SUB, FP},
-    // {MUL, P},
-    // {MUL, FP},
-    // {MUL, DP},
-    // {MUL, FDPP},
+    {ADD, P},
+    {SUB, P},
+    {MUL, FP},
     // {MUL, FDP},
-    // {MUL, FXP},
-    // {FDIV, FP},
-    // {CDIV, FP},
-    // {TDIV, FP},
-    // {EDIV, FP},
-    // {FDIV, P},
-    // {CDIV, P},
-    // {TDIV, P},
-    // {EDIV, P},
-    // {FDIV, DP},
-    // {CDIV, DP},
-    // {TDIV, DP},
-    // {EDIV, DP},
+    // {MULDIV, FP},
+    {FDIV, DP},
+    {CDIV, DP},
+    {TDIV, DP},
+    {EDIV, DP},
     {MIN, P},
     {MAX, P},
     {REQ, FP},
@@ -371,7 +362,7 @@ void benchmark(const char* itv_name, bool csv) {
     int64_t concrete_propag_ns = 0;
     // int max = 40;
     // for(int bound = 0; bound <= max; ++bound) {
-    if(true) { int bound = 20;
+    if(true) { int bound = 15;
       Itv x = Itv(-bound, bound);
       Itv y = Itv(-bound, bound);
       Itv z = Itv(-bound, bound);
@@ -379,7 +370,7 @@ void benchmark(const char* itv_name, bool csv) {
       int xub = static_cast<int>(x.ub());
       int yub = static_cast<int>(y.ub());
 
-      #pragma omp parallel for collapse(4) schedule(dynamic)
+      // #pragma omp parallel for collapse(4) schedule(dynamic)
       for(int xl = x.lb(); xl <= xub; ++xl) {
       for(int xu = x.lb(); xu <= xub; ++xu) {
       for(int yl = y.lb(); yl <= yub; ++yl) {
@@ -397,6 +388,18 @@ void benchmark(const char* itv_name, bool csv) {
           case ADD: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zadd<value_type>, ask::zadd<value_type>); break;
           case SUB: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zsub<value_type>, ask::zsub<value_type>); break;
           case MUL: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmul<value_type>, ask::zmul<value_type>); break;
+          case MULDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            [](auto& x, auto& y, auto& z) {
+              if(!x.contains(0) || !z.contains(0)) {
+                tell::fdiv<value_type>(y, x, z);
+                tell::cdiv<value_type>(y, x, z);
+              }
+              if(!x.contains(0) || !y.contains(0)) {
+                tell::fdiv<value_type>(z, x, y);
+                tell::cdiv<value_type>(z, x, y);
+              }
+            },
+            ask::zmul<value_type>); break;
           case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::fdiv_fast<value_type>, ask::fdiv<value_type>); break;
           case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::cdiv_fast<value_type>, ask::cdiv<value_type>); break;
           case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::tdiv_fast<value_type>, ask::tdiv<value_type>); break;
@@ -561,13 +564,6 @@ void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 
         Itv a = random_interval<Itv>(rng);
         Itv b = random_divisor_interval<Itv>(rng); // divisor-specialized
         Itv c = random_interval<Itv>(rng);
-
-        // OVERFLOW??
-// Unsound propagator for x=[-91892,18002] y=[-87476,30591] z=[70381,70381]
-// 	Concrete x=[-70381,0] y=[-61025,0] z=[70381,70381]
-// 	Abstract x=[-70381,0] y=[-1,0] z=[70381,70381]
-
-
         int r = 0;
         switch(sig) {
           case MUL:
