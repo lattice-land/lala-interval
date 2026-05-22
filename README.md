@@ -193,20 +193,46 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 
 An _abstract domain_ is an abstraction of a set of assignments $\mathcal{P}(X \to U)$ where $X$ is a set of variables and $U$ the universe of discourse.
 It essentially extends the concept of abstract universe with variables.
+A variable is identified by a pair `(aty, idx)` where `idx` is the index of the variable inside the abstract domain identified with `aty` (abstract type).
+This 2-dimensional identifier is necessary since the variables might reside in different abstract domains.
+For instance, consider the following declarations:
+```c++
+UStore<ZInterval<int>> sz(0, 10);
+UStore<FInterval<float>> sf(1, 20);
+```
+It declares the store `sz` with 10 variables over integers, and the store `sf` with 20 variables over floating-point intervals.
+The pair `(0, 4)` denotes the 5th variable in `sz` while `(1,4)` denotes the 5th variable in `sf`.
+We provide the structure `VarID` to model this pair with a single integer.
 
 ### UStore Abstract Domain
 
-The _universe store abstract domain_ `UStore` is an array of universes $X \to A$ where $X = \set{0, 1, \ldots, n}$ and $A$ is a parametric abstract universe.
+The _universe store abstract domain_ `UStore` is an array of universes $X \to U$ where $X = \set{0, 1, \ldots, n}$ and $U$ is a template abstract universe.
 In abstract interpretation, `UStore<ZInterval<int>>` is called the _interval abstract domain_ (can also be defined over `FInterval`).
+Here, the class `UStore` represents more generally a _Cartesian abstract domain_.
 
-Let `L` be a `UStore` abstract domain with any underlying abstract universe.
+Let `L` be a `UStore` abstract domain with any underlying abstract universe and `aty` its identifier.
+We denote an element of the underlying abstract universe `U` by `u`.
 
-| Operation  | Mathematical notation | Programming notation |
-| ------------- | ------------- | ------------- |
-| Bottom  | $\bot$ | `L::bot()` |
-| Top  | $\top$ | `L::top()` or default constructor `L()` |
-| Partial order | $a \leq b$ | `a.leq(b)` |
-| Strict partial order | $a < b$ | `a.lt(b)` |
-| Meet | $a \sqcap b$ | `meet(a,b)` or `a.meet(b)` (in-place) |
-| Join | $a \sqcup b$ | `join(a,b)` or `a.join(b)` (in-place) |
+| Operation  | Mathematical notation | Programming notation | Cooperation group? |
+| ------------- | ------------- | ------------- |  ------------- |
+| Bottom  | $\bot$ | `L::bot()` (untyped) or `L::bot(aty)` (typed) | n/a |
+| Top  | $\top$ | `L::top()` (untyped) or `L::top(aty)` (typed) | n/a |
+|  | | or default constructor `L()` or `L(aty)` |
+| Partial order | $a \leq b$ | `a.leq(b)` | Yes |
+| Strict partial order | $a < b$ | `a.lt(b)` | Yes |
+| Equality | $a = b$ | `a.eq(b)` or `a == b` | Yes (only `.eq`) |
+| Disequality | $a \neq b$ | `a.neq(b)` or `a != b` | Yes (only `.neq`) |
+| Meet | $a \sqcap b$ | `meet(a,b)` or `a.meet(b)` (in-place) | Yes |
+| Join | $a \sqcup b$ | `join(a,b)` or `a.join(b)` (in-place) | Yes |
+| Meet bot | $a \sqcap \bot$ | `a.meet_bot()` (in-place) | n/a |
+| Meet top | $a \sqcup \top$ | `a.join_top()` (in-place) | Yes |
+| Project | $a(x)$ | `a.project(x)` | n/a |
+| Embed | $a[x \mapsto a(x) \sqcap u]$ | `a.embed(x, u)` (in-place) | n/a |
+| Bottom test | $a = \bot$ | `a.is_bot()` | n/a |
+| Top test | $a = \top$ | `a.is_top()` | Yes |
 
+In addition:
+
+* **Allocators**: Constructors and factory functions are also parametrized by an allocator (e.g. `L::bot(aty, alloc)`).
+* **Parallelism**: Operations take an optional cooperation group `Group& group`, this is useful to parallelize those operations on GPU (e.g. `a.leq(this_thread_block(), b)`).
+* **Fast join or meet**: If we know $a \leq b$, and wish to compute in-place `a.join(b)`, it is unnecessary to compute all the pairwise join and can directly copy `b` into `a` (and dually for meet). This optimization can be achieved using `void copy_to(const Group& group, Store& other)` which copy the current store into `other`. However, note that `copy_to` assumes none of the arguments `a` and `b` are modified during the execution of this function; hence, it is not suitable to be used in parallel with other threads modifying `a` or `b` at the same time.

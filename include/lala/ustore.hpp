@@ -76,7 +76,7 @@ Template parameters:
   - `VarIDType` is the type of the variable's identifier.
   - `MemType` is the type of memory used to represent a private Boolean member denoting whether the store is bot or not.
 */
-template<class U, class Allocator, class VarIDType = VarID<>, class MemType = typename U::memory_type>
+template<class U, class Allocator = battery::standard_allocator, class VarIDType = VarID<>, class MemType = typename U::memory_type>
 class UStore {
 public:
   using universe_type = U;
@@ -157,7 +157,7 @@ public:
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type bot(AType atype = VarIDType::untyped(),
+  CUDA static this_type bot(id_type atype = VarIDType::untyped(),
     const allocator_type& alloc = allocator_type{})
   {
     auto s = UStore{atype, alloc};
@@ -184,9 +184,9 @@ public:
 
 private:
   struct SingleThreadGroup {
-    CUDA inline unsigned int thread_rank() { return 0; }
-    CUDA inline unsigned int num_threads() { return 1; }
-    CUDA inline void sync() { return; }
+    CUDA constexpr inline unsigned int thread_rank() const { return 0; }
+    CUDA constexpr inline unsigned int num_threads() const { return 1; }
+    CUDA constexpr inline void sync() const { return; }
   };
 
 public:
