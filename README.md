@@ -48,7 +48,7 @@ The following operations are mostly there for optimization purposes, but could b
 
 ### Interval Lattice
 
-In this library, the bottom element of the interval abstract universe denotes the equivalence class of all empty intervals $\set{[\ell,u] \;|\; \ell > u }$, the function `is_bot` is `true` on all such intervals.
+In this library, the bottom element of the interval abstract universe denotes the equivalence class of all empty intervals $\set{[\ell,u] | \ell > u }$, the function `is_bot` is `true` on all such intervals.
 The lattice operations are defined in the following table.
 
 | Operation  | Definition | Programming notation |
@@ -206,7 +206,7 @@ We provide the structure `VarID` to model this pair with a single integer.
 
 ### UStore Abstract Domain
 
-The _universe store abstract domain_ `UStore` is an array of universes $X \to U$ where $X = \set{0, 1, \ldots, n}$ and $U$ is a template abstract universe.
+The _universe store abstract domain_ `UStore` is an array of universes, modelling partial function $X \to U$ where $X = \set{0, 1, \ldots, n}$ and $U$ is an abstract universe.
 In abstract interpretation, `UStore<ZInterval<int>>` is called the _interval abstract domain_ (can also be defined over `FInterval`).
 Here, the class `UStore` represents more generally a _Cartesian abstract domain_.
 
@@ -234,5 +234,5 @@ We denote an element of the underlying abstract universe `U` by `u`.
 In addition:
 
 * **Allocators**: Constructors and factory functions are also parametrized by an allocator (e.g. `L::bot(aty, alloc)`).
-* **Parallelism**: Operations take an optional cooperation group `Group& group`, this is useful to parallelize those operations on GPU (e.g. `a.leq(this_thread_block(), b)`).
-* **Fast join or meet**: If we know $a \leq b$, and wish to compute in-place `a.join(b)`, it is unnecessary to compute all the pairwise join and can directly copy `b` into `a` (and dually for meet). This optimization can be achieved using `void copy_to(const Group& group, Store& other)` which copy the current store into `other`. However, note that `copy_to` assumes none of the arguments `a` and `b` are modified during the execution of this function; hence, it is not suitable to be used in parallel with other threads modifying `a` or `b` at the same time.
+* **Parallelism**: Some operations take an optional cooperation group `Group& group`, this is useful for parallelism on GPU (e.g. `a.leq(this_thread_block(), b, res)`).
+* **Fast join**: If we know $a \leq b$, and wish to compute in-place `a.join(b)`, it is unnecessary to compute all the pairwise join and can directly copy `b` into `a`. This optimization can be achieved using `a.join_fast(b)` which copy `other` into the current store. However, note that `join_fast` assumes that none of the arguments `a` and `b` are modified during the execution of this function; hence, it is not suitable to be used in parallel with other threads modifying `a` or `b` at the same time.

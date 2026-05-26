@@ -52,7 +52,7 @@ public:
   }
 
   CUDA constexpr void type_as(value_type atype) {
-    value = (vid() << num_bits_aty) | atype;
+    value = (idx() << num_bits_aty) | atype;
   }
 };
 
@@ -84,6 +84,7 @@ public:
   using allocator_type = Allocator;
   using this_type = UStore<universe_type, allocator_type>;
   using memory_type = MemType;
+  using var_id_type = VarIDType;
   using id_type = typename VarIDType::value_type;
 
   constexpr static const bool is_totally_ordered = false;
@@ -170,17 +171,21 @@ public:
     return is_at_bot.load();
   }
 
-  /** The top element of a store of `n` variables is when all variables are at top, or the store is empty.
-   * We do not expect to use this operation a lot, so its complexity is linear in the number of variables. */
-  CUDA bool is_top() const {
+  /** The top element of a store of `n` variables is when all variables are at top, or the store is empty. */
+  template <class Group>
+  CUDA bool is_top(const Group& group) const {
     if(is_at_bot) { return false; }
-    for(size_t i = 0; i < size(); ++i) {
+    for (int i = group.thread_rank(); i < size(); i += group.num_threads()) {
       if(!data[i].is_top()) {
         return false;
       }
     }
     return true;
   }
+
+  for (int i = group.thread_rank(); i < n; i += group.num_threads()) {
+      has_changed |= data[i].join(other.data[i]);
+    }
 
 private:
   struct SingleThreadGroup {
@@ -192,6 +197,23 @@ private:
 public:
   CUDA void resize(size_t n) {
     data.resize(n);
+  }
+
+  template <class Group, class MemType2, class U2, class Alloc2>
+  CUDA void leq(const Group& group, UB<bool, MemType2>& result, const UStore<U2, Alloc2>& other)  {
+    result.join(size() >= other.size());
+    int min_size = battery::min(a.size(), b.size());
+    for(int i = 0; i < min_size; ++i) {
+      if(!(a[i] <= b[i])) {
+        return false;
+      }
+    }
+    for(int i = min_size; i < b.vars(); ++i) {
+      if(!b[i].is_top()) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // parallel access: `this` and `other` cannot be resized by another thread during the execution of this function.
@@ -249,62 +271,66 @@ public:
     return meet(SingleThreadGroup{}, other);
   }
 
-  template <class Group, class Store>
-  CUDA void copy_to(const Group& group, Store& other) const {
-    assert(size() == other.size());
+  template <class Group, class U2, class Alloc2>
+  CUDA void join_fast(const Group& group, const UStore<U2, Alloc2>& other) {
+    assert(size() >= other.size());
     if(group.thread_rank() == 0) {
-      other.is_at_bot = is_at_bot;
+      is_at_bot = other.is_at_bot;
+      if(!is_at_bot) {
+        resize(other.size()); // shrink down, it does not trigger reallocation.
+      }
     }
-    if(is_at_bot) {
+    if(other.is_at_bot) {
       return;
     }
     for (int i = group.thread_rank(); i < other.size(); i += group.num_threads()) {
-      other.data[i] = data[i];
+      data[i] = other.data[i];
     }
   }
 
-  template <class Store>
-  CUDA void copy_to(Store& other) const {
-    copy_to(SingleThreadGroup{}, other);
+  template <class U2, class Alloc2>
+  CUDA bool join_fast(const UStore<U2, Alloc2>& other)  {
+    return join_fast(SingleThreadGroup{}, other);
   }
 
-  template <class AVar>
-  CUDA const universe_type& project(AVar x) const {
+  CUDA INLINE const universe_type& project(var_id_type x) const {
     assert(x.aty() == aty());
-    assert(x.vid() < data.size());
-    return data[x.vid()];
+    return project(x.idx());
   }
 
-  /** This projection must stay const, otherwise the user might modify the result, but we need to know in case we reach `top`. */
-  CUDA const universe_type& operator[](int x) const {
+  CUDA INLINE const universe_type& project(id_type x) const {
+    assert(x < data.size());
     return data[x];
   }
 
-  template <class AVar>
-  CUDA const universe_type& operator[](AVar x) const {
+  /** This projection must stay const, otherwise the user might modify the result, but we need to know in case we reach `top`. */
+  CUDA INLINE const universe_type& operator[](id_type x) const {
     return project(x);
   }
 
-  CUDA void meet_bot() {
+  CUDA INLINE const universe_type& operator[](var_id_type x) const {
+    return project(x);
+  }
+
+  CUDA INLINE void meet_bot() {
     is_at_bot.meet_bot();
   }
 
   /** Embedding is similar to `project(i).meet(dom)` with additional care for the case when the result is bottom (which is the reason why `project` cannot be directly used).
    * precondition: `size() > x`
   */
-  CUDA bool embed(int x, const universe_type& dom) {
+  CUDA INLINE bool embed(id_type x, const universe_type& dom) {
     assert(x < data.size());
     bool has_changed = data[x].meet(dom);
     if(has_changed && data[x].is_bot()) {
-      is_at_bot.meet_bot();
+      meet_bot();
     }
     return has_changed;
   }
 
-  template <class AVar>
-  CUDA bool embed(AVar x, const universe_type& dom) {
+  CUDA INLINE bool embed(var_id_type x, const universe_type& dom) {
     assert(x.aty() == aty());
-    return embed(x.vid(), dom);
+    return embed(x.idx(), dom);
   }
 
   CUDA void print() const {
