@@ -6,55 +6,6 @@
 
 namespace lala {
 
-/** A variable identifier is a pair (aty, index) such that `index` is the index of the variable inside the abstract domain identified with `aty` (abstract type). */
-template <class ValueType = int, int num_bits_aty = 5>
-class VarID {
-public:
-  using value_type = ValueType;
-
-private:
-  value_type value;
-
-public:
-  CUDA constexpr VarID(): value(-1) {}
-  constexpr VarID(const VarID&) = default;
-  constexpr VarID(VarID&&) = default;
-  constexpr VarID& operator=(const VarID&) = default;
-  constexpr VarID& operator=(VarID&&) = default;
-  CUDA constexpr bool operator==(const VarID& other) const {
-    return value == other.value;
-  }
-  CUDA constexpr bool operator!=(const VarID& other) const {
-    return value != other.value;
-  }
-
-  CUDA constexpr VarID(value_type atype, value_type idx): value((idx << num_bits_aty) | atype) {
-    assert(atype >= 0);
-    assert(idx >= 0);
-    assert(atype < (1 << num_bits_aty));
-    assert(idx < (1 << (sizeof(value_type)*8 - num_bits_aty - 1))); // -1 bit because we use -1 to represent "unknown ID", hence negative numbers are not used.
-  }
-
-  CUDA constexpr static value_type untyped() {
-    return -1;
-  }
-
-  CUDA constexpr bool is_unknown() const {
-    return value == -1;
-  }
-
-  CUDA constexpr value_type aty() const {
-    return is_unknown() ? -1 : (value & ((1 << num_bits_aty) - 1));
-  }
-
-  CUDA constexpr value_type idx() const {
-    return is_unknown() ? -1 : value >> num_bits_aty;
-  }
-
-  CUDA constexpr void type_as(value_type atype) {
-    value = (idx() << num_bits_aty) | atype;
-  }
-};
 
 /** The universe store abstract domain is a _domain transformer_ built on top of an abstract universe `U`.
 Concretization function: \f$ \gamma(\rho) := \bigcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
@@ -73,10 +24,9 @@ For instance, \f$ \langle 1 \rangle.\mathit{meet}(\langle \bot, 4 \rangle) \f$ w
 Template parameters:
   - `U` is the type of the abstract universe.
   - `Allocator` is the allocator of the underlying array of universes.
-  - `VarIDType` is the type of the variable's identifier.
   - `MemType` is the type of memory used to represent a private Boolean member denoting whether the store is bot or not.
 */
-template<class U, class Allocator = battery::standard_allocator, class VarIDType = VarID<>, class MemType = typename U::memory_type>
+template<class U, class Allocator = battery::standard_allocator, class MemType = typename U::memory_type>
 class UStore {
 public:
   using universe_type = U;
@@ -84,8 +34,6 @@ public:
   using allocator_type = Allocator;
   using this_type = UStore<universe_type, allocator_type>;
   using memory_type = MemType;
-  using var_id_type = VarIDType;
-  using id_type = typename VarIDType::value_type;
 
   constexpr static const bool is_totally_ordered = false;
   constexpr static const char* name = "UStore";
@@ -96,38 +44,27 @@ public:
 private:
   using store_type = battery::vector<universe_type, allocator_type>;
 
-  id_type atype;
   store_type data;
   LB<bool, memory_type> is_at_bot;
 
 public:
   CUDA UStore(const this_type& other)
-    : atype(other.atype), data(other.data), is_at_bot(other.is_at_bot)
+    : data(other.data), is_at_bot(other.is_at_bot)
   {}
 
   /** Initialize an empty store (top element). */
   CUDA UStore(const allocator_type& alloc = allocator_type())
-   : atype(VarIDType::untyped()), data(alloc), is_at_bot(false)
-  {}
-
-  /** Initialize an empty store (top element). */
-  CUDA UStore(id_type atype, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(alloc), is_at_bot(false)
-  {}
-
-  /** Initialize a store of size `n`. */
-  CUDA UStore(id_type atype, size_t n, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(n, alloc), is_at_bot(false)
+   : data(alloc), is_at_bot(false)
   {}
 
   template<class R>
   CUDA UStore(const UStore<R, allocator_type>& other)
-    : atype(other.atype), data(other.data), is_at_bot(other.is_at_bot)
+    : data(other.data), is_at_bot(other.is_at_bot)
   {}
 
   template<class R, class Alloc2>
   CUDA UStore(const UStore<R, Alloc2>& other, const allocator_type& alloc = allocator_type())
-    : atype(other.atype), data(other.data, alloc), is_at_bot(other.is_at_bot)
+    : data(other.data, alloc), is_at_bot(other.is_at_bot)
   {}
 
   /** Copy the ustore `other` in the current element.
@@ -137,31 +74,25 @@ public:
    : UStore(other, deps.template get_allocator<allocator_type>()) {}
 
   CUDA UStore(this_type&& other):
-    atype(other.atype), data(std::move(other.data)), is_at_bot(other.is_at_bot) {}
+    data(std::move(other.data)), is_at_bot(other.is_at_bot) {}
 
   CUDA allocator_type get_allocator() const {
     return data.get_allocator();
-  }
-
-  CUDA id_type aty() const {
-    return atype;
   }
 
   CUDA size_t size() const {
     return data.size();
   }
 
-  CUDA static this_type top(id_type atype = VarIDType::untyped(),
-    const allocator_type& alloc = allocator_type{})
+  CUDA static this_type top(const allocator_type& alloc = allocator_type{})
   {
-    return UStore(atype, alloc);
+    return UStore(alloc);
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type bot(id_type atype = VarIDType::untyped(),
-    const allocator_type& alloc = allocator_type{})
+  CUDA static this_type bot(const allocator_type& alloc = allocator_type{})
   {
-    auto s = UStore{atype, alloc};
+    auto s = UStore{alloc};
     s.meet_bot();
     return std::move(s);
   }
@@ -293,44 +224,39 @@ public:
     return join_fast(SingleThreadGroup{}, other);
   }
 
-  CUDA INLINE const universe_type& project(var_id_type x) const {
-    assert(x.aty() == aty());
-    return project(x.idx());
+  CUDA INLINE const universe_type& project(int idx) const {
+    assert(idx < data.size());
+    return data[idx];
   }
 
-  CUDA INLINE const universe_type& project(id_type x) const {
-    assert(x < data.size());
-    return data[x];
+  CUDA INLINE const universe_type& project(size_t idx) const {
+    assert(idx < data.size());
+    return data[idx];
   }
 
-  /** This projection must stay const, otherwise the user might modify the result, but we need to know in case we reach `top`. */
-  CUDA INLINE const universe_type& operator[](id_type x) const {
-    return project(x);
+  /** This projection must stay const, otherwise the user might modify the result, but we need to know in case we reach `bot`. */
+  CUDA INLINE const universe_type& operator[](int idx) const {
+    return project(idx);
   }
 
-  CUDA INLINE const universe_type& operator[](var_id_type x) const {
-    return project(x);
+  CUDA INLINE const universe_type& operator[](size_t idx) const {
+    return project(idx);
   }
 
   CUDA INLINE void meet_bot() {
     is_at_bot.meet_bot();
   }
 
-  /** Embedding is similar to `project(i).meet(dom)` with additional care for the case when the result is bottom (which is the reason why `project` cannot be directly used).
-   * precondition: `size() > x`
+  /** Embedding is similar to `project(idx).meet(dom)` with additional care for the case when the result is bottom (which is the reason why `project` cannot be directly used).
+   * precondition: `size() > idx`
   */
-  CUDA INLINE bool embed(id_type x, const universe_type& dom) {
-    assert(x < data.size());
-    bool has_changed = data[x].meet(dom);
-    if(has_changed && data[x].is_bot()) {
+  CUDA INLINE bool embed(int idx, const universe_type& dom) {
+    assert(idx < data.size());
+    bool has_changed = data[idx].meet(dom);
+    if(has_changed && data[idx].is_bot()) {
       meet_bot();
     }
     return has_changed;
-  }
-
-  CUDA INLINE bool embed(var_id_type x, const universe_type& dom) {
-    assert(x.aty() == aty());
-    return embed(x.idx(), dom);
   }
 
   CUDA void print() const {
@@ -350,169 +276,169 @@ public:
 // Note that we do not consider the logical names.
 // These operations are only considering the indices of the elements.
 
-template<class L, class K, class Alloc>
-CUDA auto fmeet(const UStore<L, Alloc>& a, const UStore<K, Alloc>& b)
-{
-  using U = decltype(fmeet(a[0], b[0]));
-  if(a.is_bot() || b.is_bot()) {
-    return UStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
-  }
-  int max_size = battery::max(a.vars(), b.vars());
-  int min_size = battery::min(a.vars(), b.vars());
-  UStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
-  for(int i = 0; i < min_size; ++i) {
-    res.embed(i, fmeet(a[i], b[i]));
-  }
-  for(int i = min_size; i < a.vars(); ++i) {
-    res.embed(i, a[i]);
-  }
-  for(int i = min_size; i < b.vars(); ++i) {
-    res.embed(i, b[i]);
-  }
-  return res;
-}
+// template<class L, class K, class Alloc>
+// CUDA auto fmeet(const UStore<L, Alloc>& a, const UStore<K, Alloc>& b)
+// {
+//   using U = decltype(fmeet(a[0], b[0]));
+//   if(a.is_bot() || b.is_bot()) {
+//     return UStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
+//   }
+//   int max_size = battery::max(a.vars(), b.vars());
+//   int min_size = battery::min(a.vars(), b.vars());
+//   UStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
+//   for(int i = 0; i < min_size; ++i) {
+//     res.embed(i, fmeet(a[i], b[i]));
+//   }
+//   for(int i = min_size; i < a.vars(); ++i) {
+//     res.embed(i, a[i]);
+//   }
+//   for(int i = min_size; i < b.vars(); ++i) {
+//     res.embed(i, b[i]);
+//   }
+//   return res;
+// }
 
-template<class L, class K, class Alloc>
-CUDA auto fjoin(const UStore<L, Alloc>& a, const UStore<K, Alloc>& b)
-{
-  using U = decltype(fjoin(a[0], b[0]));
-  if(a.is_bot()) {
-    if(b.is_bot()) {
-      return UStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
-    }
-    else {
-      return UStore<U, Alloc>(b);
-    }
-  }
-  else if(b.is_bot()) {
-    return UStore<U, Alloc>(a);
-  }
-  else {
-    int min_size = battery::min(a.vars(), b.vars());
-    UStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
-    for(int i = 0; i < min_size; ++i) {
-      res.embed(i, fjoin(a[i], b[i]));
-    }
-    return res;
-  }
-}
+// template<class L, class K, class Alloc>
+// CUDA auto fjoin(const UStore<L, Alloc>& a, const UStore<K, Alloc>& b)
+// {
+//   using U = decltype(fjoin(a[0], b[0]));
+//   if(a.is_bot()) {
+//     if(b.is_bot()) {
+//       return UStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
+//     }
+//     else {
+//       return UStore<U, Alloc>(b);
+//     }
+//   }
+//   else if(b.is_bot()) {
+//     return UStore<U, Alloc>(a);
+//   }
+//   else {
+//     int min_size = battery::min(a.vars(), b.vars());
+//     UStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
+//     for(int i = 0; i < min_size; ++i) {
+//       res.embed(i, fjoin(a[i], b[i]));
+//     }
+//     return res;
+//   }
+// }
 
-template<class L, class K, class Alloc1, class Alloc2>
-CUDA bool operator<=(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
-{
-  if(b.is_top()) {
-    return true;
-  }
-  else {
-    int min_size = battery::min(a.vars(), b.vars());
-    for(int i = 0; i < min_size; ++i) {
-      if(!(a[i] <= b[i])) {
-        return false;
-      }
-    }
-    for(int i = min_size; i < b.vars(); ++i) {
-      if(!b[i].is_top()) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
+// template<class L, class K, class Alloc1, class Alloc2>
+// CUDA bool operator<=(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
+// {
+//   if(b.is_top()) {
+//     return true;
+//   }
+//   else {
+//     int min_size = battery::min(a.vars(), b.vars());
+//     for(int i = 0; i < min_size; ++i) {
+//       if(!(a[i] <= b[i])) {
+//         return false;
+//       }
+//     }
+//     for(int i = min_size; i < b.vars(); ++i) {
+//       if(!b[i].is_top()) {
+//         return false;
+//       }
+//     }
+//   }
+//   return true;
+// }
 
-template<class L, class K, class Alloc1, class Alloc2>
-CUDA bool operator<(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
-{
-  if(a.is_bot()) {
-    return !b.is_bot();
-  }
-  else {
-    int min_size = battery::min(a.vars(), b.vars());
-    bool strict = false;
-    for(int i = 0; i < a.vars(); ++i) {
-      if(i < b.vars()) {
-        if(a[i] < b[i]) {
-          strict = true;
-        }
-        else if(!(a[i] <= b[i])) {
-          return false;
-        }
-      }
-      else if(!a[i].is_top()) {
-        strict = true;
-        break;
-      }
-    }
-    for(int i = min_size; i < b.vars(); ++i) {
-      if(!b[i].is_top()) {
-        return false;
-      }
-    }
-    return strict;
-  }
-}
+// template<class L, class K, class Alloc1, class Alloc2>
+// CUDA bool operator<(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
+// {
+//   if(a.is_bot()) {
+//     return !b.is_bot();
+//   }
+//   else {
+//     int min_size = battery::min(a.vars(), b.vars());
+//     bool strict = false;
+//     for(int i = 0; i < a.vars(); ++i) {
+//       if(i < b.vars()) {
+//         if(a[i] < b[i]) {
+//           strict = true;
+//         }
+//         else if(!(a[i] <= b[i])) {
+//           return false;
+//         }
+//       }
+//       else if(!a[i].is_top()) {
+//         strict = true;
+//         break;
+//       }
+//     }
+//     for(int i = min_size; i < b.vars(); ++i) {
+//       if(!b[i].is_top()) {
+//         return false;
+//       }
+//     }
+//     return strict;
+//   }
+// }
 
-template<class L, class K, class Alloc1, class Alloc2>
-CUDA bool operator>=(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
-{
-  return b <= a;
-}
+// template<class L, class K, class Alloc1, class Alloc2>
+// CUDA bool operator>=(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
+// {
+//   return b <= a;
+// }
 
-template<class L, class K, class Alloc1, class Alloc2>
-CUDA bool operator>(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
-{
-  return b < a;
-}
+// template<class L, class K, class Alloc1, class Alloc2>
+// CUDA bool operator>(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
+// {
+//   return b < a;
+// }
 
-template<class L, class K, class Alloc1, class Alloc2>
-CUDA bool operator==(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
-{
-  if(a.is_bot()) {
-    return b.is_bot();
-  }
-  else if(b.is_bot()) {
-    return false;
-  }
-  else {
-    int min_size = battery::min(a.vars(), b.vars());
-    for(int i = 0; i < min_size; ++i) {
-      if(a[i] != b[i]) {
-        return false;
-      }
-    }
-    for(int i = min_size; i < a.vars(); ++i) {
-      if(!a[i].is_top()) {
-        return false;
-      }
-    }
-    for(int i = min_size; i < b.vars(); ++i) {
-      if(!b[i].is_top()) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
+// template<class L, class K, class Alloc1, class Alloc2>
+// CUDA bool operator==(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
+// {
+//   if(a.is_bot()) {
+//     return b.is_bot();
+//   }
+//   else if(b.is_bot()) {
+//     return false;
+//   }
+//   else {
+//     int min_size = battery::min(a.vars(), b.vars());
+//     for(int i = 0; i < min_size; ++i) {
+//       if(a[i] != b[i]) {
+//         return false;
+//       }
+//     }
+//     for(int i = min_size; i < a.vars(); ++i) {
+//       if(!a[i].is_top()) {
+//         return false;
+//       }
+//     }
+//     for(int i = min_size; i < b.vars(); ++i) {
+//       if(!b[i].is_top()) {
+//         return false;
+//       }
+//     }
+//   }
+//   return true;
+// }
 
-template<class L, class K, class Alloc1, class Alloc2>
-CUDA bool operator!=(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
-{
-  return !(a == b);
-}
+// template<class L, class K, class Alloc1, class Alloc2>
+// CUDA bool operator!=(const UStore<L, Alloc1>& a, const UStore<K, Alloc2>& b)
+// {
+//   return !(a == b);
+// }
 
-template<class L, class Alloc>
-std::ostream& operator<<(std::ostream &s, const UStore<L, Alloc> &vstore) {
-  if(vstore.is_bot()) {
-    s << "\u22A5: ";
-  }
-  else {
-    s << "<";
-    for(int i = 0; i < vstore.vars(); ++i) {
-      s << vstore[i] << (i+1 == vstore.vars() ? "" : ", ");
-    }
-    s << ">";
-  }
-  return s;
-}
+// template<class L, class Alloc>
+// std::ostream& operator<<(std::ostream &s, const UStore<L, Alloc> &vstore) {
+//   if(vstore.is_bot()) {
+//     s << "\u22A5: ";
+//   }
+//   else {
+//     s << "<";
+//     for(int i = 0; i < vstore.vars(); ++i) {
+//       s << vstore[i] << (i+1 == vstore.vars() ? "" : ", ");
+//     }
+//     s << ">";
+//   }
+//   return s;
+// }
 
 } // namespace lala
 

@@ -193,16 +193,6 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 
 An _abstract domain_ is an abstraction of a set of assignments $\mathcal{P}(X \to U)$ where $X$ is a set of variables and $U$ the universe of discourse.
 It essentially extends the concept of abstract universe with variables.
-A variable is identified by a pair `(aty, idx)` where `idx` is the index of the variable inside the abstract domain identified with `aty` (abstract type).
-This 2-dimensional identifier is necessary since the variables might reside in different abstract domains.
-For instance, consider the following declarations:
-```c++
-UStore<ZInterval<int>> sz(0, 10);
-UStore<FInterval<float>> sf(1, 20);
-```
-It declares the store `sz` with 10 variables over integers, and the store `sf` with 20 variables over floating-point intervals.
-The pair `(0, 4)` denotes the 5th variable in `sz` while `(1,4)` denotes the 5th variable in `sf`.
-We provide the structure `VarID` to model this pair with a single integer.
 
 ### UStore Abstract Domain
 
@@ -210,14 +200,13 @@ The _universe store abstract domain_ `UStore` is an array of universes, modellin
 In abstract interpretation, `UStore<ZInterval<int>>` is called the _interval abstract domain_ (can also be defined over `FInterval`).
 Here, the class `UStore` represents more generally a _Cartesian abstract domain_.
 
-Let `L` be a `UStore` abstract domain with any underlying abstract universe and `aty` its identifier.
+Let `L` be a `UStore` abstract domain with any underlying abstract universe.
 We denote an element of the underlying abstract universe `U` by `u`.
 
 | Operation  | Mathematical notation | Programming notation | Cooperation group? |
 | ------------- | ------------- | ------------- |  ------------- |
-| Bottom  | $\bot$ | `L::bot()` (untyped) or `L::bot(aty)` (typed) | n/a |
-| Top  | $\top$ | `L::top()` (untyped) or `L::top(aty)` (typed) | n/a |
-|  | | or default constructor `L()` or `L(aty)` |
+| Bottom  | $\bot$ | `L::bot()` | n/a |
+| Top  | $\top$ | `L::top()`  or default constructor `L()` | n/a |
 | Partial order | $a \leq b$ | `a.leq(b)` | Yes |
 | Strict partial order | $a < b$ | `a.lt(b)` | Yes |
 | Equality | $a = b$ | `a.eq(b)` or `a == b` | Yes (only `.eq`) |
@@ -233,6 +222,6 @@ We denote an element of the underlying abstract universe `U` by `u`.
 
 In addition:
 
-* **Allocators**: Constructors and factory functions are also parametrized by an allocator (e.g. `L::bot(aty, alloc)`).
+* **Allocators**: Constructors and factory functions are also parametrized by an allocator (e.g. `L::bot(alloc)`).
 * **Parallelism**: Some operations take an optional cooperation group `Group& group`, this is useful for parallelism on GPU (e.g. `a.leq(this_thread_block(), b, res)`).
 * **Fast join**: If we know $a \leq b$, and wish to compute in-place `a.join(b)`, it is unnecessary to compute all the pairwise join and can directly copy `b` into `a`. This optimization can be achieved using `a.join_fast(b)` which copy `other` into the current store. However, note that `join_fast` assumes that none of the arguments `a` and `b` are modified during the execution of this function; hence, it is not suitable to be used in parallel with other threads modifying `a` or `b` at the same time.
