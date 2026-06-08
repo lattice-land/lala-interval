@@ -615,7 +615,7 @@ CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 }
 
 template<class VT>
-CUDA INLINE constexpr void fdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr void zfdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
   x.fdiv(y, z);
   z.fdiv_den(x, y);
@@ -625,7 +625,7 @@ CUDA INLINE constexpr void fdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterv
 }
 
 template<class VT>
-CUDA INLINE constexpr void cdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr void zcdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
   x.cdiv(y, z);
   z.cdiv_den(x, y);
@@ -635,7 +635,7 @@ CUDA INLINE constexpr void cdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterv
 }
 
 template<class VT>
-CUDA INLINE constexpr void tdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr void ztdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
   x.tdiv(y, z);
   z.tdiv_den(x, y);
@@ -645,7 +645,7 @@ CUDA INLINE constexpr void tdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterv
 }
 
 template<class VT>
-CUDA INLINE constexpr void ediv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr void zediv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
   x.ediv(y, z);
   z.ediv_den(x, y);
@@ -679,23 +679,23 @@ CUDA void splitjoin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z, ZInter
 }
 
 template<class VT>
-CUDA INLINE constexpr void fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, VT{0}, fdiv_fast<VT>);
+CUDA INLINE constexpr void zfdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  splitjoin(x, y, z, z, VT{0}, zfdiv_fast<VT>);
 }
 
 template<class VT>
-CUDA INLINE constexpr void cdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, VT{0}, cdiv_fast<VT>);
+CUDA INLINE constexpr void zcdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  splitjoin(x, y, z, z, VT{0}, zcdiv_fast<VT>);
 }
 
 template<class VT>
-CUDA INLINE constexpr void tdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, VT{0}, tdiv_fast<VT>);
+CUDA INLINE constexpr void ztdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  splitjoin(x, y, z, z, VT{0}, ztdiv_fast<VT>);
 }
 
 template<class VT>
-CUDA INLINE constexpr void ediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, VT{0}, ediv_fast<VT>);
+CUDA INLINE constexpr void zediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  splitjoin(x, y, z, z, VT{0}, zediv_fast<VT>);
 }
 
 template<class VT>
@@ -752,7 +752,7 @@ CUDA INLINE constexpr bool zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 }
 
 template<class VT>
-CUDA INLINE constexpr bool fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr bool zfdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   return x.is_bot() || y.is_bot() || z.is_bot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::fdiv<VT>(y.lb(), z.lb())) ||
@@ -760,7 +760,7 @@ CUDA INLINE constexpr bool fdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 }
 
 template<class VT>
-CUDA INLINE constexpr bool cdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr bool zcdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   return x.is_bot() || y.is_bot() || z.is_bot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::cdiv<VT>(y.lb(), z.lb())) ||
@@ -768,7 +768,7 @@ CUDA INLINE constexpr bool cdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 }
 
 template<class VT>
-CUDA INLINE constexpr bool tdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr bool ztdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   return x.is_bot() || y.is_bot() || z.is_bot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::tdiv<VT>(y.lb(), z.lb())) ||
@@ -776,7 +776,7 @@ CUDA INLINE constexpr bool tdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 }
 
 template<class VT>
-CUDA INLINE constexpr bool ediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE constexpr bool zediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   return x.is_bot() || y.is_bot() || z.is_bot() ||
          (x.is_singleton() && y.is_singleton() && !z.contains(0) &&
             ((z.is_singleton() && x.lb() == battery::ediv<VT>(y.lb(), z.lb())) ||
@@ -821,19 +821,34 @@ CUDA INLINE constexpr bool zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<V
 namespace lala {
 namespace boundr {
 namespace tell {
+
   template<class FItv, class VT>
-  CUDA INLINE constexpr void zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-    using float_type = typename FItv::value_type;
-    FItv xf(rd_cast<float_type>(x.lb()), ru_cast<float_type>(x.ub()));
-    FItv yf(rd_cast<float_type>(y.lb()), ru_cast<float_type>(y.ub()));
-    FItv zf(rd_cast<float_type>(z.lb()), ru_cast<float_type>(z.ub()));
-    ::lala::tell::fadd(xf, yf, zf);
-    x.meet(ZInterval<VT>(ru_cast<VT>(xf.lb()), rd_cast<VT>(xf.ub())));
-    y.meet(ZInterval<VT>(ru_cast<VT>(yf.lb()), rd_cast<VT>(yf.ub())));
-    z.meet(ZInterval<VT>(ru_cast<VT>(zf.lb()), rd_cast<VT>(zf.ub())));
-  }
+CUDA INLINE constexpr void zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using float_type = typename FItv::value_type;
+  FItv xf(rd_cast<float_type>(x.lb()), ru_cast<float_type>(x.ub()));
+  FItv yf(rd_cast<float_type>(y.lb()), ru_cast<float_type>(y.ub()));
+  FItv zf(rd_cast<float_type>(z.lb()), ru_cast<float_type>(z.ub()));
+  ::lala::tell::fadd(xf, yf, zf);
+  x.meet(ZInterval<VT>(ru_cast<VT>(xf.lb()), rd_cast<VT>(xf.ub())));
+  y.meet(ZInterval<VT>(ru_cast<VT>(yf.lb()), rd_cast<VT>(yf.ub())));
+  z.meet(ZInterval<VT>(ru_cast<VT>(zf.lb()), rd_cast<VT>(zf.ub())));
 }
+
+} // namespace tell
+
+namespace ask {
+
+template<class FItv, class VT>
+CUDA INLINE constexpr bool zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using float_type = typename FItv::value_type;
+  FItv xf(rd_cast<float_type>(x.lb()), ru_cast<float_type>(x.ub()));
+  FItv yf(rd_cast<float_type>(y.lb()), ru_cast<float_type>(y.ub()));
+  FItv zf(rd_cast<float_type>(z.lb()), ru_cast<float_type>(z.ub()));
+  return ::lala::ask::fadd(xf, yf, zf);
 }
+
+} // namespace ask
+} // namespace boundr
 
 } // namespace lala
 

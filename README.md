@@ -148,7 +148,7 @@ In the following, we let `x,y,z` be floating-point intervals of type `FInterval`
 | Reified Equality | $x = (y = z)$ | `x.req(y, z)` | `y.req_back(x,z)` | `z.req_back(x,y)` |
 | Reified Inequality | $x = (y \leq z)$ | `x.rleq(y, z)` | `y.rleq_lback(x,z)` | `z.rleq_rback(x,y)` |
 
-The addition, subtraction, multiplication and division functions are based on [Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001](https://dl.acm.org/doi/10.1145/502102.502106).
+The addition, subtraction, multiplication and division forward operators are based on [Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001](https://dl.acm.org/doi/10.1145/502102.502106).
 
 ## Interval Bound Propagation
 
@@ -165,10 +165,10 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 | $x = y + z$ | `tell::zadd(x, y, z)` | Yes |
 | $x = y - z$ | `tell::zsub(x, y, z)` | Yes |
 | $x = y * z$ | `tell::zmul(x, y, z)` | No |
-| $x = \textnormal{fdiv}(y, z)$ | `tell::fdiv(x, y, z)` | Yes[^3] |
-| $x = \textnormal{cdiv}(y, z)$ | `tell::cdiv(x, y, z)` | Yes[^3] |
-| $x = \textnormal{tdiv}(y, z)$ | `tell::tdiv(x, y, z)` | Yes[^3] |
-| $x = \textnormal{ediv}(y, z)$ | `tell::ediv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{fdiv}(y, z)$ | `tell::zfdiv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{cdiv}(y, z)$ | `tell::zcdiv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{tdiv}(y, z)$ | `tell::ztdiv(x, y, z)` | Yes[^3] |
+| $x = \textnormal{ediv}(y, z)$ | `tell::zediv(x, y, z)` | Yes[^3] |
 | $x = \textnormal{max}(y, z)$ | `tell::zmax(x, y, z)` | Yes |
 | $x = \textnormal{min}(y, z)$ | `tell::zmin(x, y, z)` | Yes |
 | $x = (y = z)$ | `tell::zreq(x, y, z)` | Yes |
@@ -176,7 +176,7 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 
 [^3]: This is currently a conjecture from experimental results. Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
 
-### Entailment Test on ZInterval
+### Entailment Tests on ZInterval
 
 Let `x,y,z` be integer intervals of type `ZInterval`.
 
@@ -185,10 +185,10 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 | $x = y + z$ | `ask::zadd(x, y, z)` |
 | $x = y - z$ | `ask::zsub(x, y, z)` |
 | $x = y * z$ | `ask::zmul(x, y, z)` |
-| $x = \textnormal{fdiv}(y, z)$ | `ask::fdiv(x, y, z)` |
-| $x = \textnormal{cdiv}(y, z)$ | `ask::cdiv(x, y, z)` |
-| $x = \textnormal{tdiv}(y, z)$ | `ask::tdiv(x, y, z)` |
-| $x = \textnormal{ediv}(y, z)$ | `ask::ediv(x, y, z)` |
+| $x = \textnormal{fdiv}(y, z)$ | `ask::zfdiv(x, y, z)` |
+| $x = \textnormal{cdiv}(y, z)$ | `ask::zcdiv(x, y, z)` |
+| $x = \textnormal{tdiv}(y, z)$ | `ask::ztdiv(x, y, z)` |
+| $x = \textnormal{ediv}(y, z)$ | `ask::zediv(x, y, z)` |
 | $x = \textnormal{max}(y, z)$ | `ask::zmax(x, y, z)` |
 | $x = \textnormal{min}(y, z)$ | `ask::zmin(x, y, z)` |
 | $x = (y = z)$ | `ask::zreq(x, y, z)` |
@@ -209,7 +209,7 @@ Let `x,y,z` be floating-point intervals of type `FInterval`.
 | $x = (y = z)$ | `tell::freq(x, y, z)` | Yes |
 | $x = (y \leq z)$ | `tell::frleq(x, y, z)` | Yes |
 
-### Entailment Test on FInterval
+### Entailment Tests on FInterval
 
 Let `x,y,z` be floating-point intervals of type `FInterval`.
 

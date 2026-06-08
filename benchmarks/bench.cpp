@@ -389,26 +389,26 @@ void benchmark(const char* itv_name, bool csv) {
         switch(sig) {
           case ADD: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::zadd<FInterval<double>, value_type> : tell::zadd<value_type>,
-            ask::zadd<value_type>);
+            boundr ? boundr::ask::zadd<FInterval<double>, value_type> : ask::zadd<value_type>);
             break;
           case SUB: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zsub<value_type>, ask::zsub<value_type>); break;
           case MUL: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmul<value_type>, ask::zmul<value_type>); break;
           case MULDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             [](auto& x, auto& y, auto& z) {
               if(!x.contains(0) || !z.contains(0)) {
-                tell::fdiv<value_type>(y, x, z);
-                tell::cdiv<value_type>(y, x, z);
+                tell::zfdiv<value_type>(y, x, z);
+                tell::zcdiv<value_type>(y, x, z);
               }
               if(!x.contains(0) || !y.contains(0)) {
-                tell::fdiv<value_type>(z, x, y);
-                tell::cdiv<value_type>(z, x, y);
+                tell::zfdiv<value_type>(z, x, y);
+                tell::zcdiv<value_type>(z, x, y);
               }
             },
             ask::zmul<value_type>); break;
-          case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::fdiv_fast<value_type>, ask::fdiv<value_type>); break;
-          case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::cdiv_fast<value_type>, ask::cdiv<value_type>); break;
-          case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::tdiv_fast<value_type>, ask::tdiv<value_type>); break;
-          case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::ediv_fast<value_type>, ask::ediv<value_type>); break;
+          case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zfdiv_fast<value_type>, ask::zfdiv<value_type>); break;
+          case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zcdiv_fast<value_type>, ask::zcdiv<value_type>); break;
+          case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::ztdiv_fast<value_type>, ask::ztdiv<value_type>); break;
+          case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zediv_fast<value_type>, ask::zediv<value_type>); break;
           case MIN: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmin<value_type>, ask::zmin<value_type>); break;
           case MAX: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmax<value_type>, ask::zmax<value_type>); break;
           case REQ: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zreq<value_type>, ask::zreq<value_type>); break;
@@ -577,19 +577,19 @@ void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 
             break;
           case FDIV:
             r = wrap_propagate(prop_kind, sig, a, b, c,
-              stats_list[tid], tell::fdiv<value_type>, ask::fdiv<value_type>);
+              stats_list[tid], tell::zfdiv<value_type>, ask::zfdiv<value_type>);
             break;
           case CDIV:
             r = wrap_propagate(prop_kind, sig, a, b, c,
-              stats_list[tid], tell::cdiv<value_type>, ask::cdiv<value_type>);
+              stats_list[tid], tell::zcdiv<value_type>, ask::zcdiv<value_type>);
             break;
           case TDIV:
             r = wrap_propagate(prop_kind, sig, a, b, c,
-              stats_list[tid], tell::tdiv<value_type>, ask::tdiv<value_type>);
+              stats_list[tid], tell::ztdiv<value_type>, ask::ztdiv<value_type>);
             break;
           case EDIV:
             r = wrap_propagate(prop_kind, sig, a, b, c,
-              stats_list[tid], tell::ediv<value_type>, ask::ediv<value_type>);
+              stats_list[tid], tell::zediv<value_type>, ask::zediv<value_type>);
             break;
           default:
             printf("ERROR!\n");

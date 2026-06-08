@@ -192,14 +192,14 @@ private:
   // See Sec. 5.2 of Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001.
   CUDA INLINE constexpr void normalize_zeroes() {
     if(l == VT{0.0}) l = VT{+0.0};
-    if(u == VT{0.0}) u = VT{-0.0},
+    if(u == VT{0.0}) u = VT{-0.0};
   }
 
 public:
   // Given the current interval [l,u], this function computes `meet([l,u], a + b)`.
   CUDA INLINE constexpr this_type& add(basic_type a, basic_type b) {
     if (a.is_bot() || b.is_bot()) return meet_bot();
-    l.meet(battery::add_down<VT>(a.l, b.l); // top case: -oo + -oo = -oo
+    l.meet(battery::add_down<VT>(a.l, b.l)); // top case: -oo + -oo = -oo
     u.meet(battery::add_up<VT>(a.u, b.u));  // top case: oo + oo = oo
     return *this;
   }
@@ -230,7 +230,7 @@ public:
     else {
       if(a.is_singleton(VT{0.0}) || b.is_singleton(VT{0.0})) {
         l.meet(VT{0.0});
-        u.meet(VT{0.0})
+        u.meet(VT{0.0});
       }
       else {
         // There are 9 possible cases according to the following classification.
@@ -239,20 +239,20 @@ public:
         // int class_b = (b.l >= 0 ? 0 : (b.u > 0 ? 1 : 2));
         // switch(3 * class_a + class_b) {
         switch(3 * (a.l >= 0 ? 0 : (a.u > 0 ? 1 : 2)) + (b.l >= 0 ? 0 : (b.u > 0 ? 1 : 2))) {
-          case 0: { l.meet(mul_down<VT>(a.l, b.l); u.meet(mul_up<VT>(a.u, b.u)); break; }
-          case 1: { l.meet(mul_down<VT>(a.u, b.l); u.meet(mul_up<VT>(a.u, b.u)); break; }
-          case 2: { l.meet(mul_down<VT>(a.u, b.l); u.meet(mul_up<VT>(a.l, b.u)); break; }
-          case 3: { l.meet(mul_down<VT>(a.l, b.u); u.meet(mul_up<VT>(a.u, b.u)); break; }
+          case 0: { l.meet(mul_down<VT>(a.l, b.l)); u.meet(mul_up<VT>(a.u, b.u)); break; }
+          case 1: { l.meet(mul_down<VT>(a.u, b.l)); u.meet(mul_up<VT>(a.u, b.u)); break; }
+          case 2: { l.meet(mul_down<VT>(a.u, b.l)); u.meet(mul_up<VT>(a.l, b.u)); break; }
+          case 3: { l.meet(mul_down<VT>(a.l, b.u)); u.meet(mul_up<VT>(a.u, b.u)); break; }
           case 4: {
             l.meet(min(mul_down<VT>(a.l, b.u), mul_down<VT>(a.u, b.l)));
             u.meet(max(mul_up<VT>(a.l, b.l), mul_up<VT>(a.u, b.u)));
             break;
           }
-          case 5: { l.meet(mul_down<VT>(a.u, b.l); u.meet(mul_up<VT>(a.l, b.l)); break; }
-          case 6: { l.meet(mul_down<VT>(a.l, b.u); u.meet(mul_up<VT>(a.u, b.l)); break; }
-          case 7: { l.meet(mul_down<VT>(a.l, b.u); u.meet(mul_up<VT>(a.l, b.l)); break; }
+          case 5: { l.meet(mul_down<VT>(a.u, b.l)); u.meet(mul_up<VT>(a.l, b.l)); break; }
+          case 6: { l.meet(mul_down<VT>(a.l, b.u)); u.meet(mul_up<VT>(a.u, b.l)); break; }
+          case 7: { l.meet(mul_down<VT>(a.l, b.u)); u.meet(mul_up<VT>(a.l, b.l)); break; }
           case 8:
-          default: { l.meet(mul_down<VT>(a.u, b.u); u.meet(mul_up<VT>(a.l, b.l)); break; }
+          default: { l.meet(mul_down<VT>(a.u, b.u)); u.meet(mul_up<VT>(a.l, b.l)); break; }
         }
       }
     }
@@ -284,17 +284,17 @@ private:
       // int class_b = (b.l >= 0 ? 1 : 2);
       // switch(class_a * class_b) {
       switch((a.l > 0 ? 0 : (a.l == 0 ? 1 : (a.l < 0 && a.u > 0 ? 2 : (a.u == 0 ? 3 : 4)))) * (b.l >= 0 ? 1 : 2)) {
-        case 0: { l.meet(div_down<VT>(a, d)); u.meet(div_up<VT>(b, c)); break; }
-        case 1: { l.meet(VT{0.0}); u.meet(div_up<VT>(b, c)); break; }
-        case 2: { l.meet(div_down<VT>(a, c)); u.meet(div_up<VT>(b, c)); break; }
-        case 3: { l.meet(div_down<VT>(a, c)); u.meet(VT{0.0}); break; }
-        case 4: { l.meet(div_down<VT>(a, c)); u.meet(div_up<VT>(b, d)); break; }
-        case 5: { l.meet(div_down<VT>(b, d)); u.meet(div_up<VT>(a, c)); break; }
-        case 6: { l.meet(div_down<VT>(b, d)); u.meet(VT{0.0}); break; }
-        case 7: { l.meet(div_down<VT>(b, d)); u.meet(div_up<VT>(a, d)); break; }
-        case 8: { l.meet(VT{0.0}); u.meet(div_up<VT>(a, d)); break; }
+        case 0: { l.meet(div_down<VT>(a.l, b.u)); u.meet(div_up<VT>(a.u, b.l)); break; }
+        case 1: { l.meet(VT{0.0}); u.meet(div_up<VT>(a.u, b.l)); break; }
+        case 2: { l.meet(div_down<VT>(a.l, b.l)); u.meet(div_up<VT>(a.u, b.l)); break; }
+        case 3: { l.meet(div_down<VT>(a.l, b.l)); u.meet(VT{0.0}); break; }
+        case 4: { l.meet(div_down<VT>(a.l, b.l)); u.meet(div_up<VT>(a.u, b.u)); break; }
+        case 5: { l.meet(div_down<VT>(a.u, b.u)); u.meet(div_up<VT>(a.l, b.l)); break; }
+        case 6: { l.meet(div_down<VT>(a.u, b.u)); u.meet(VT{0.0}); break; }
+        case 7: { l.meet(div_down<VT>(a.u, b.u)); u.meet(div_up<VT>(a.l, b.u)); break; }
+        case 8: { l.meet(VT{0.0}); u.meet(div_up<VT>(a.l, b.u)); break; }
         case 9:
-        default: { l.meet(div_down<VT>(b, c)); u.meet(div_up<VT>(a, d)); break; }
+        default: { l.meet(div_down<VT>(a.u, b.l)); u.meet(div_up<VT>(a.l, b.u)); break; }
       }
     }
     return *this;
