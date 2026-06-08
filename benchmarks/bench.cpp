@@ -15,6 +15,7 @@
 #include <omp.h>
 
 #include "lala/zinterval.hpp"
+#include "lala/finterval.hpp"
 
 enum Sig { ADD, SUB, MULDIV, MUL, TDIV, FDIV, CDIV, EDIV, MIN, MAX, RLEQ, REQ };
 
@@ -220,9 +221,9 @@ int propagate(Sig sig, Itv x, Itv y, Itv z,
       else {
         // if(not_best < 100) {
         // if(concrete_bot) {
-          // printf("Sound but not the best propagator for x=[%d,%d] y=[%d,%d] z=[%d,%d]\n", x.lb(), x.ub(), y.lb(), y.ub(), z.lb(), z.ub());
-          // printf("  Concrete x=[%d,%d] y=[%d,%d] z=[%d,%d]\n", cx.lb(), cx.ub(), cy.lb(), cy.ub(), cz.lb(), cz.ub());
-          // printf("  Abstract x=[%d,%d] y=[%d,%d] z=[%d,%d]\n", x.lb(), x.ub(), y.lb(), y.ub(), z.lb(), z.ub());
+          std::cout << "Sound but not the best propagator for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
+          std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
+          std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
         // }
         // exit(1);
         ++not_best;
@@ -338,20 +339,21 @@ void benchmark(const char* itv_name, bool csv) {
   // printf("--\n");
   // exit(1);
 
+  constexpr bool boundr = true;
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
     {ADD, P},
-    {SUB, P},
-    {MUL, FP},
+    // {SUB, P},
+    // {MUL, FP},
     // {MUL, FDP},
     // {MULDIV, FP},
-    {FDIV, DP},
-    {CDIV, DP},
-    {TDIV, DP},
-    {EDIV, DP},
-    {MIN, P},
-    {MAX, P},
-    {REQ, FP},
-    {RLEQ, FP},
+    // {FDIV, DP},
+    // {CDIV, DP},
+    // {TDIV, DP},
+    // {EDIV, DP},
+    // {MIN, P},
+    // {MAX, P},
+    // {REQ, FP},
+    // {RLEQ, FP},
   };
   for(auto [sig, prop_kind] : prop_kinds) {
     std::vector<Statistics> stats_list(omp_get_max_threads());
@@ -362,7 +364,7 @@ void benchmark(const char* itv_name, bool csv) {
     int64_t concrete_propag_ns = 0;
     // int max = 40;
     // for(int bound = 0; bound <= max; ++bound) {
-    if(true) { int bound = 15;
+    if(true) { int bound = 10;
       Itv x = Itv(-bound, bound);
       Itv y = Itv(-bound, bound);
       Itv z = Itv(-bound, bound);
@@ -385,7 +387,10 @@ void benchmark(const char* itv_name, bool csv) {
         // }
         int r = 0;
         switch(sig) {
-          case ADD: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zadd<value_type>, ask::zadd<value_type>); break;
+          case ADD: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::zadd<FInterval<double>, value_type> : tell::zadd<value_type>,
+            ask::zadd<value_type>);
+            break;
           case SUB: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zsub<value_type>, ask::zsub<value_type>); break;
           case MUL: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmul<value_type>, ask::zmul<value_type>); break;
           case MULDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],

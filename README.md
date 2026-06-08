@@ -16,6 +16,7 @@ The following abstractions are approximating any subset of the universe of disco
 
 * **Lower bound abstract universe**: `LB` approximates a set $S \subseteq \mathbb{A}$ by taking its lower bound $\mathit{min}~S$ if it is a bounded set, and $-\infty$ otherwise.
 * **Upper bound abstract universe**: `UB` approximates a set $S \subseteq \mathbb{A}$ by taking its upper bound $\mathit{max}~S$ if it is a bounded set, and $\infty$ otherwise.
+* **Boolean abstract universes**: `LB<bool>` is a two-elements lattice with the top element to `false` and bottom to `true`. Dually, we have `UB<bool>` where top is `true` and bottom is `false`.
 * **Integer interval abstract universe**: `ZInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{Z}$.
 * **Floating-point interval abstract universe**: `FInterval` approximates the lower and upper bounds of a set $S \subseteq \mathbb{R}$.
 
@@ -24,7 +25,7 @@ We represent infinities $\{-\infty, \infty\}$ using the minimum and maximum repr
 ### Lattice Operations
 
 We have a unified interface for standard lattice operations.
-Let `L` be one of the abstract universe above.
+Let `L` be one of the abstract universes above.
 
 | Operation  | Mathematical notation | Programming notation |
 | ------------- | ------------- | ------------- |
@@ -85,7 +86,7 @@ In the following, we let `x,y,z` be integer intervals of type `ZInterval`.
 | Operation  | Constraint | Forward operator | Left backward operator | Right backward operator |
 | ------------- | ------------- | ------------- | ------------- | ------------- |
 | Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` | n/a |
-| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` | n/a |
+| Negation  | $x = \mathord{-}y$ | `x.neg(y)`  | `y.neg(x)` | n/a |
 | Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` | `z.sub(x,y)` |
 | Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` | `z.sub(y,x)` |
 | Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.mul_back(x,z)` | `z.mul_back(x,y)` |
@@ -132,18 +133,22 @@ x = \textnormal{ediv}(y,z) \Leftrightarrow
 
 ### FInterval: Abstract Operations
 
-In the following, we let `x,y,z` be integer intervals of type `FInterval`.
+In the following, we let `x,y,z` be floating-point intervals of type `FInterval`.
 
 | Operation  | Constraint | Forward operator | Left backward operator | Right backward operator |
 | ------------- | ------------- | ------------- | ------------- | ------------- |
 | Identity  | $x = y$ | `x.meet(y)`  | `y.meet(x)` | n/a |
-| Negation  | $x = -y$ | `x.neg(y)`  | `y.neg(x)` | n/a |
+| Negation  | $x = \mathord{-}y$ | `x.neg(y)`  | `y.neg(x)` | n/a |
 | Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` | `z.sub(x,y)` |
 | Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` | `z.sub(y,x)` |
-| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.div(x,z)` | `z.div(x,y)` |
+| Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.mul_back(x,z)` | `z.mul_back(x,y)` |
 | Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` | `z.div(y,x)` |
 | Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_b(x,z)` | `z.max_b(x,y)` |
 | Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_b(x,z)` | `z.min_b(x,y)` |
+| Reified Equality | $x = (y = z)$ | `x.req(y, z)` | `y.req_back(x,z)` | `z.req_back(x,y)` |
+| Reified Inequality | $x = (y \leq z)$ | `x.rleq(y, z)` | `y.rleq_lback(x,z)` | `z.rleq_rback(x,y)` |
+
+The addition, subtraction, multiplication and division functions are based on [Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001](https://dl.acm.org/doi/10.1145/502102.502106).
 
 ## Interval Bound Propagation
 
@@ -189,39 +194,32 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 | $x = (y = z)$ | `ask::zreq(x, y, z)` |
 | $x = (y \leq z)$ | `ask::zrleq(x, y, z)` |
 
-## Abstract Domain
+### Propagators on FInterval
 
-An _abstract domain_ is an abstraction of a set of assignments $\mathcal{P}(X \to U)$ where $X$ is a set of variables and $U$ the universe of discourse.
-It essentially extends the concept of abstract universe with variables.
+Let `x,y,z` be floating-point intervals of type `FInterval`.
 
-### UStore Abstract Domain
+| Constraint | Propagator | Best? |
+| ------------- | ------------- | ------------- |
+| $x = y + z$ | `tell::fadd(x, y, z)` | Yes |
+| $x = y - z$ | `tell::fsub(x, y, z)` | Yes |
+| $x = y * z$ | `tell::fmul(x, y, z)` | No |
+| $x = y / z$ | `tell::fdiv(x, y, z)` | Yes |
+| $x = \textnormal{max}(y, z)$ | `tell::fmax(x, y, z)` | Yes |
+| $x = \textnormal{min}(y, z)$ | `tell::fmin(x, y, z)` | Yes |
+| $x = (y = z)$ | `tell::freq(x, y, z)` | Yes |
+| $x = (y \leq z)$ | `tell::frleq(x, y, z)` | Yes |
 
-The _universe store abstract domain_ `UStore` is an array of universes, modelling partial function $X \to U$ where $X = \set{0, 1, \ldots, n}$ and $U$ is an abstract universe.
-In abstract interpretation, `UStore<ZInterval<int>>` is called the _interval abstract domain_ (can also be defined over `FInterval`).
-Here, the class `UStore` represents more generally a _Cartesian abstract domain_.
+### Entailment Test on FInterval
 
-Let `L` be a `UStore` abstract domain with any underlying abstract universe.
-We denote an element of the underlying abstract universe `U` by `u`.
+Let `x,y,z` be floating-point intervals of type `FInterval`.
 
-| Operation  | Mathematical notation | Programming notation | Cooperation group? |
-| ------------- | ------------- | ------------- |  ------------- |
-| Bottom  | $\bot$ | `L::bot()` | n/a |
-| Top  | $\top$ | `L::top()`  or default constructor `L()` | n/a |
-| Partial order | $a \leq b$ | `a.leq(b)` | Yes |
-| Strict partial order | $a < b$ | `a.lt(b)` | Yes |
-| Equality | $a = b$ | `a.eq(b)` or `a == b` | Yes (only `.eq`) |
-| Disequality | $a \neq b$ | `a.neq(b)` or `a != b` | Yes (only `.neq`) |
-| Meet | $a \sqcap b$ | `meet(a,b)` or `a.meet(b)` (in-place) | Yes |
-| Join | $a \sqcup b$ | `join(a,b)` or `a.join(b)` (in-place) | Yes |
-| Meet bot | $a \sqcap \bot$ | `a.meet_bot()` (in-place) | n/a |
-| Meet top | $a \sqcup \top$ | `a.join_top()` (in-place) | Yes |
-| Project | $a(x)$ | `a.project(x)` | n/a |
-| Embed | $a[x \mapsto a(x) \sqcap u]$ | `a.embed(x, u)` (in-place) | n/a |
-| Bottom test | $a = \bot$ | `a.is_bot()` | n/a |
-| Top test | $a = \top$ | `a.is_top()` | Yes |
-
-In addition:
-
-* **Allocators**: Constructors and factory functions are also parametrized by an allocator (e.g. `L::bot(alloc)`).
-* **Parallelism**: Some operations take an optional cooperation group `Group& group`, this is useful for parallelism on GPU (e.g. `a.leq(this_thread_block(), b, res)`).
-* **Fast join**: If we know $a \leq b$, and wish to compute in-place `a.join(b)`, it is unnecessary to compute all the pairwise join and can directly copy `b` into `a`. This optimization can be achieved using `a.join_fast(b)` which copy `other` into the current store. However, note that `join_fast` assumes that none of the arguments `a` and `b` are modified during the execution of this function; hence, it is not suitable to be used in parallel with other threads modifying `a` or `b` at the same time.
+| Constraint | Entailment test |
+| ------------- | ------------- |
+| $x = y + z$ | `ask::fadd(x, y, z)` |
+| $x = y - z$ | `ask::fsub(x, y, z)` |
+| $x = y * z$ | `ask::fmul(x, y, z)` |
+| $x = y / z$ | `ask::fdiv(x, y, z)` |
+| $x = \textnormal{max}(y, z)$ | `ask::zmax(x, y, z)` |
+| $x = \textnormal{min}(y, z)$ | `ask::zmin(x, y, z)` |
+| $x = (y = z)$ | `ask::zreq(x, y, z)` |
+| $x = (y \leq z)$ | `ask::zrleq(x, y, z)` |

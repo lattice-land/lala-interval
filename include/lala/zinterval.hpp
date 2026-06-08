@@ -805,6 +805,7 @@ CUDA INLINE constexpr bool zreq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
     (x.ub() == VT{0} && (y.ub() < z.lb() || y.lb() > z.ub()));
 }
 
+// precondition: x <= [0,1]
 template<class VT>
 CUDA INLINE constexpr bool zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   return x.is_bot() || y.is_bot() || z.is_bot() ||
@@ -813,6 +814,26 @@ CUDA INLINE constexpr bool zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<V
 }
 
 } // namespace ask
+} // namespace lala
+
+#include "lala/finterval.hpp"
+
+namespace lala {
+namespace boundr {
+namespace tell {
+  template<class FItv, class VT>
+  CUDA INLINE constexpr void zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+    using float_type = typename FItv::value_type;
+    FItv xf(rd_cast<float_type>(x.lb()), ru_cast<float_type>(x.ub()));
+    FItv yf(rd_cast<float_type>(y.lb()), ru_cast<float_type>(y.ub()));
+    FItv zf(rd_cast<float_type>(z.lb()), ru_cast<float_type>(z.ub()));
+    ::lala::tell::fadd(xf, yf, zf);
+    x.meet(ZInterval<VT>(ru_cast<VT>(xf.lb()), rd_cast<VT>(xf.ub())));
+    y.meet(ZInterval<VT>(ru_cast<VT>(yf.lb()), rd_cast<VT>(yf.ub())));
+    z.meet(ZInterval<VT>(ru_cast<VT>(zf.lb()), rd_cast<VT>(zf.ub())));
+  }
+}
+}
 
 } // namespace lala
 
