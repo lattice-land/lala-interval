@@ -65,7 +65,7 @@ public:
   CUDA INLINE constexpr const ub_type& ub() const { return u; }
 
   CUDA INLINE constexpr bool is_singleton() const {
-    return l == u && !l.is_bot() && !u.is_bot();
+    return l.load() == u.load() && !l.is_bot() && !u.is_bot();
   }
 
   CUDA INLINE constexpr bool is_singleton(value_type v) const {
@@ -191,8 +191,8 @@ private:
   // Useful to avoid a few tests during division.
   // See Sec. 5.2 of Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001.
   CUDA INLINE constexpr void normalize_zeroes() {
-    if(l == VT{0.0}) l = VT{+0.0};
-    if(u == VT{0.0}) u = VT{-0.0};
+    if(l == VT{0.0}) l = VT{0.0};
+    if(u == VT{0.0}) u = -VT{0.0};
   }
 
 public:
@@ -222,7 +222,7 @@ public:
     // Bounded case
     if (!a.l.is_top() && !a.u.is_top() && !b.l.is_top() && !b.u.is_top()) {
       l.meet(min(min(mul_down<VT>(a.l, b.l), mul_down<VT>(a.l, b.u)), min(mul_down<VT>(a.u, b.l), mul_down<VT>(a.u, b.u))));
-      u.meet(max(max(mul_up<VT>(a.l, b.l), mul_up<VT>(a.l, b.u)), max(mul_up<VT>(a.u, b.l), mul_up<VT>(a.u, b.l))));
+      u.meet(max(max(mul_up<VT>(a.l, b.l), mul_up<VT>(a.l, b.u)), max(mul_up<VT>(a.u, b.l), mul_up<VT>(a.u, b.u))));
     }
     // Unbounded case (either a.l, a.u, b.l or b.u is top).
     // Note this also covers the bounded case. We keep the first case to reduce thread divergence.
@@ -261,29 +261,30 @@ public:
 
 private:
   // Suppose !a.is_singleton(0) /\ !b.is_singleton(0) /\ !a.is_bot() /\ !b.is_bot()
-  CUDA INLINE constexpr this_type& div_nz(const basic_type& a, const basic_type& b) {
+  // Based on Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001.
+  CUDA INLINE constexpr this_type& div_nz(basic_type& a, basic_type& b) {
     using battery::min;
     using battery::max;
     using battery::mul_down;
     using battery::mul_up;
     // Mixed case: 0 is contained in b, but not on the endpoints.
     if (b.l < VT{0.0} && b.u > VT{0.0}) { return *this; }
-    // Bounded case with 0 \notin b.
+    // Bounded case, b.l != 0 /\ b.u != 0 (avoiding the case 0/0).
     if (b.l != VT{0.0} && b.u != VT{0.0} && !a.l.is_top() && !a.u.is_top() && !b.l.is_top() && !b.u.is_top()) {
       l.meet(min(min(div_down<VT>(a.l, b.l), div_down<VT>(a.l, b.u)), min(div_down<VT>(a.u, b.l), div_down<VT>(a.u, b.u))));
-      u.meet(max(max(div_up<VT>(a.l, b.l), div_up<VT>(a.l, b.u)), max(div_up<VT>(a.u, b.l), div_up<VT>(a.u, b.l))));
+      u.meet(max(max(div_up<VT>(a.l, b.l), div_up<VT>(a.l, b.u)), max(div_up<VT>(a.u, b.l), div_up<VT>(a.u, b.u))));
     }
     // Unbounded case (either a.l, a.u, b.l or b.u is top).
     // Note this also covers the bounded case. We keep the first case to reduce thread divergence.
-    // Based on Hickey et al., "Interval Arithmetic: From Principles to Implementation", JACM, 2001.
     else {
+      // Normalizing zeroes in `b` allows to divide by 0.0 and obtain the correct infinity.
       b.normalize_zeroes();
       // 0: positive+ (l > 0), 1: positive0 (l = 0 /\ u > 0), 2: mixed (l < 0 < u), 3: negative0 (l < 0 /\ u = 0), 4: negative- (u < 0).
       // int class_a = (a.l > 0 ? 0 : (a.l == 0 ? 1 : (a.l < 0 && a.u > 0 ? 2 : (a.u == 0 ? 3 : 4))));
       // 0: positive (l >= 0 /\ u > 0), 2: negative (l < 0 /\ u <= 0)
-      // int class_b = (b.l >= 0 ? 1 : 2);
-      // switch(class_a * class_b) {
-      switch((a.l > 0 ? 0 : (a.l == 0 ? 1 : (a.l < 0 && a.u > 0 ? 2 : (a.u == 0 ? 3 : 4)))) * (b.l >= 0 ? 1 : 2)) {
+      // int class_b = (b.l >= 0 ? 0 : 1);
+      // switch(class_a + (5 * class_b)) {
+      switch((a.l > 0 ? 0 : (a.l == 0 ? 1 : (a.l < 0 && a.u > 0 ? 2 : (a.u == 0 ? 3 : 4)))) + (b.l >= 0 ? 0 : 5)) {
         case 0: { l.meet(div_down<VT>(a.l, b.u)); u.meet(div_up<VT>(a.u, b.l)); break; }
         case 1: { l.meet(VT{0.0}); u.meet(div_up<VT>(a.u, b.l)); break; }
         case 2: { l.meet(div_down<VT>(a.l, b.l)); u.meet(div_up<VT>(a.u, b.l)); break; }
@@ -304,10 +305,14 @@ public:
   // Let a = b * x, we update x according to a and b.
   CUDA INLINE constexpr this_type& mul_back(basic_type a, basic_type b) {
     if (a.is_bot() || b.is_bot()) { return meet_bot(); }
-    if (b.is_singleton(VT{0.0}) || is_singleton(VT{0.0})) { return *this; }
-    if (a.is_singleton(VT{0.0}) && !b.contains(VT{0.0})) {
-      l.meet(VT{0.0});
-      u.meet(VT{0.0});
+    if (b.is_singleton(VT{0.0}) || (a.contains(VT{0.0}) && b.contains(VT{0.0}))) { return *this; }
+
+    // TODO: check if this is actually needed. I think it's taken into account in div_nz already.
+    if (a.is_singleton(VT{0.0})) {
+      if(!b.contains(VT{0.0})) {
+        l.meet(VT{0.0});
+        u.meet(VT{0.0});
+      }
       return *this;
     }
     return div_nz(a, b);
@@ -328,6 +333,15 @@ public:
       return *this;
     }
     return div_nz(a, b);
+  }
+
+  // Let a = b / x, we update x according to a and b.
+  CUDA INLINE constexpr this_type& div_rback(basic_type a, basic_type b) {
+    // Since 0 = 0 / z for any z.
+    if(!a.contains(VT{0.0}) || !b.contains(VT{0.0})) {
+      div(a, b);
+    }
+    return *this;
   }
 
   // Given the current interval [l,u], this function computes `meet([l,u], min(a, b))`.
@@ -487,7 +501,8 @@ template<class VT>
 CUDA INLINE constexpr void fdiv(FInterval<VT>& x, FInterval<VT>& y, FInterval<VT>& z) {
   x.div(y, z);
   y.mul(x, z);
-  z.div(y, x);
+  z.div_rback(y, x);
+  x.div(y, z);
 }
 
 template<class VT>

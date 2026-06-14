@@ -142,9 +142,9 @@ In the following, we let `x,y,z` be floating-point intervals of type `FInterval`
 | Addition  | $x = y + z$ | `x.add(y,z)`  | `y.sub(x,z)` | `z.sub(x,y)` |
 | Subtraction  | $x = y - z$ | `x.sub(y,z)`  | `y.add(x,z)` | `z.sub(y,x)` |
 | Multiplication | $x = y * z$ | `x.mul(y, z)` | `y.mul_back(x,z)` | `z.mul_back(x,y)` |
-| Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` | `z.div(y,x)` |
-| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_b(x,z)` | `z.max_b(x,y)` |
-| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_b(x,z)` | `z.min_b(x,y)` |
+| Division | $x = y / z$ | `x.div(y, z)` | `y.mul(x, z)` | `z.div_rback(y,x)` |
+| Maximum | $x = \textnormal{max}(y, z)$ | `x.max(y, z)` | `y.max_back(x,z)` | `z.max_back(x,y)` |
+| Minimum | $x = \textnormal{min}(y, z)$ | `x.min(y, z)` | `y.min_back(x,z)` | `z.min_back(x,y)` |
 | Reified Equality | $x = (y = z)$ | `x.req(y, z)` | `y.req_back(x,z)` | `z.req_back(x,y)` |
 | Reified Inequality | $x = (y \leq z)$ | `x.rleq(y, z)` | `y.rleq_lback(x,z)` | `z.rleq_rback(x,y)` |
 
@@ -173,6 +173,8 @@ Let `x,y,z` be integer intervals of type `ZInterval`.
 | $x = \textnormal{min}(y, z)$ | `tell::zmin(x, y, z)` | Yes |
 | $x = (y = z)$ | `tell::zreq(x, y, z)` | Yes |
 | $x = (y \leq z)$ | `tell::zrleq(x, y, z)` | Yes |
+
+**Propagators enforcing Bound(R) consistency**: They are available under the namespace `boundr::tell` with the same names as above. They are less precise than the propagators above and are mainly available for research purposes and for testing propagators on `FInterval`.
 
 [^3]: This is currently a conjecture from experimental results. Faster but less precise propagators, postfixed by `_fast` (e.g. `tell::fdiv_fast`) are also available: they do not perform a `splitjoin` operation on `z`.
 

@@ -221,9 +221,9 @@ int propagate(Sig sig, Itv x, Itv y, Itv z,
       else {
         // if(not_best < 100) {
         // if(concrete_bot) {
-          std::cout << "Sound but not the best propagator for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
-          std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
-          std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
+          // std::cout << "Sound but not the best propagator for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
+          // std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
+          // std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
         // }
         // exit(1);
         ++not_best;
@@ -335,17 +335,28 @@ void benchmark(const char* itv_name, bool csv) {
   using value_type = typename Itv::value_type;
 
   // Statistics fake;
-  // propagate(ADD, Itv(-2,-2), Itv(0,0), Itv(-2,-1), fake, tell::zadd<value_type>);
+  // propagate(FDIV, Itv(-2,-1), Itv(0,1), Itv(-2,-2), fake,
+  //   boundr::tell::zfdiv<FInterval<double>, value_type>,
+  //   ask::zfdiv<value_type>);
   // printf("--\n");
   // exit(1);
 
   constexpr bool boundr = true;
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
-    {ADD, P},
+    // {ADD, P},
     // {SUB, P},
     // {MUL, FP},
     // {MUL, FDP},
     // {MULDIV, FP},
+    // {TDIV, FP},
+    {TDIV, FDP},
+    // {FDIV, FP},
+    {FDIV, FDP},
+    // {CDIV, FP},
+    {CDIV, FDP},
+    // {EDIV, FP},
+    {EDIV, FDP},
+    // {FDIV, DP},
     // {FDIV, DP},
     // {CDIV, DP},
     // {TDIV, DP},
@@ -364,7 +375,7 @@ void benchmark(const char* itv_name, bool csv) {
     int64_t concrete_propag_ns = 0;
     // int max = 40;
     // for(int bound = 0; bound <= max; ++bound) {
-    if(true) { int bound = 10;
+    if(true) { int bound = 15;
       Itv x = Itv(-bound, bound);
       Itv y = Itv(-bound, bound);
       Itv z = Itv(-bound, bound);
@@ -372,7 +383,7 @@ void benchmark(const char* itv_name, bool csv) {
       int xub = static_cast<int>(x.ub());
       int yub = static_cast<int>(y.ub());
 
-      // #pragma omp parallel for collapse(4) schedule(dynamic)
+      #pragma omp parallel for collapse(4) schedule(dynamic)
       for(int xl = x.lb(); xl <= xub; ++xl) {
       for(int xu = x.lb(); xu <= xub; ++xu) {
       for(int yl = y.lb(); yl <= yub; ++yl) {
@@ -391,8 +402,12 @@ void benchmark(const char* itv_name, bool csv) {
             boundr ? boundr::tell::zadd<FInterval<double>, value_type> : tell::zadd<value_type>,
             boundr ? boundr::ask::zadd<FInterval<double>, value_type> : ask::zadd<value_type>);
             break;
-          case SUB: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zsub<value_type>, ask::zsub<value_type>); break;
-          case MUL: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmul<value_type>, ask::zmul<value_type>); break;
+          case SUB: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::zsub<FInterval<double>, value_type> : tell::zsub<value_type>,
+            boundr ? boundr::ask::zsub<FInterval<double>, value_type> : ask::zsub<value_type>); break;
+          case MUL: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::zmul<FInterval<double>, value_type> : tell::zmul<value_type>,
+            boundr ? boundr::ask::zmul<FInterval<double>, value_type> : ask::zmul<value_type>); break;
           case MULDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             [](auto& x, auto& y, auto& z) {
               if(!x.contains(0) || !z.contains(0)) {
@@ -405,10 +420,18 @@ void benchmark(const char* itv_name, bool csv) {
               }
             },
             ask::zmul<value_type>); break;
-          case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zfdiv_fast<value_type>, ask::zfdiv<value_type>); break;
-          case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zcdiv_fast<value_type>, ask::zcdiv<value_type>); break;
-          case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::ztdiv_fast<value_type>, ask::ztdiv<value_type>); break;
-          case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zediv_fast<value_type>, ask::zediv<value_type>); break;
+          case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv_fast<value_type>,
+            ask::zfdiv<value_type>); break;
+          case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::zcdiv<FInterval<double>, value_type> : tell::zcdiv_fast<value_type>,
+            ask::zcdiv<value_type>); break;
+          case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::ztdiv<FInterval<double>, value_type> : tell::ztdiv_fast<value_type>,
+            ask::ztdiv<value_type>); break;
+          case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::zediv<FInterval<double>, value_type> : tell::zediv_fast<value_type>,
+            ask::zediv<value_type>); break;
           case MIN: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmin<value_type>, ask::zmin<value_type>); break;
           case MAX: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zmax<value_type>, ask::zmax<value_type>); break;
           case REQ: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()], tell::zreq<value_type>, ask::zreq<value_type>); break;
@@ -536,20 +559,22 @@ Itv random_divisor_interval(URNG& rng, int min_v = -RANGEITV, int max_v = RANGEI
 }
 
 template <class Itv>
-void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 10000, uint64_t seed = 0) {
+void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 1000, uint64_t seed = 0) {
   using value_type = typename Itv::value_type;
 
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
     // {FDIV, P},
     // {CDIV, P},
-    // {TDIV, P},
+    {TDIV, FP},
     // {EDIV, P},
     // {FDIV, DP},
     // {CDIV, DP},
     // {TDIV, DP},
     // {EDIV, DP},
-    {MUL, FP}
+    // {MUL, FP}
   };
+
+  constexpr bool boundr = false;
 
   for(auto [sig, prop_kind] : prop_kinds) {
     std::vector<Statistics> stats_list(omp_get_max_threads());
@@ -583,9 +608,9 @@ void benchmark_random_division(const char* itv_name, bool csv, size_t samples = 
             r = wrap_propagate(prop_kind, sig, a, b, c,
               stats_list[tid], tell::zcdiv<value_type>, ask::zcdiv<value_type>);
             break;
-          case TDIV:
-            r = wrap_propagate(prop_kind, sig, a, b, c,
-              stats_list[tid], tell::ztdiv<value_type>, ask::ztdiv<value_type>);
+          case TDIV: r = wrap_propagate(prop_kind, sig, a, b, c, stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::ztdiv<FInterval<double>, value_type> : tell::ztdiv<value_type>,
+            ask::ztdiv<value_type>); break;
             break;
           case EDIV:
             r = wrap_propagate(prop_kind, sig, a, b, c,
