@@ -731,61 +731,32 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
     // skip, there is nothing we can do.
   }
   else {
-    ZInterval<VT> ys(y);
-    ZInterval<VT> zs(z);
-    ZInterval<VT> zr = ZInterval<VT>::bot();
-    // CASE 2: [-oo, -1]
-    if(y.l < 0) {
-      y.u.meet(VT{-1});
-      if(x.l > 0) {
-        z.l.meet(cdiv<VT>(y.l, x.l));
-        z.u.meet(cdiv<VT>(y.u, x.u + VT{1}) - VT{1});
-      }
-      else if(x.u < VT{-1}) {
-        z.l.meet(cdiv<VT>(y.u, x.l));
-        z.u.meet(cdiv<VT>(y.l, x.u + VT{1}) - VT{1});
-      }
-      else if(x.is_singleton(VT{0})) {
-        z.u.meet(y.u - VT{1});
-      }
-      else if(x.is_singleton(VT{-1})) {
-        z.l.meet(-y.u);
-      }
-      else {
-        if(x.l <= -2 && x.u == -1) { z.l.meet(cdiv<VT>(y.u, x.l)); }
-        else if(x.l == 0 && x.u > 0) { z.u.meet(cdiv<VT>(y.u, x.u + VT{1}) - VT{1}); }
-      }
-      zr.join(z);
-      y = ys;
-      z = zs;
+    if(x.l > 0) {
+      z.l.meet(min<VT>(cdiv<VT>(y.l, x.l), fdiv<VT>(max<VT>(1,y.l), x.u + VT{1}) + VT{1}));
+      z.u.meet(max<VT>(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1}, fdiv<VT>(y.u, x.l)));
     }
-
-    // CASE 3: [1, oo]
-    if(y.u > 0) {
-      y.l.meet(VT{1});
-      if(x.l > 0) {
-        z.l.meet(fdiv<VT>(y.l, x.u + VT{1}) + VT{1});
-        z.u.meet(fdiv<VT>(y.u, x.l));
-      }
-      else if(x.u < VT{-1}) {
-        z.l.meet(fdiv<VT>(y.u, x.u + VT{1}) + VT{1});
-        z.u.meet(fdiv<VT>(y.l, x.l));
-      }
-      else if(x.is_singleton(VT{0})) {
-        z.l.meet(y.l + VT{1});
-      }
-      else if(x.is_singleton(VT{-1})) {
-        z.u.meet(-y.l);
-      }
-      else {
-        if(x.l <= -2 && x.u == -1) { z.u.meet(fdiv<VT>(y.l, x.l)); }
-        else if(x.l == 0 && x.u > 0) { z.l.meet(fdiv<VT>(y.l, x.u + VT{1}) + VT{1}); }
-      }
-      zr.join(z);
-      y = ys;
-      z = zs;
+    else if(x.u < VT{-1}) {
+      z.l.meet(min<VT>(cdiv<VT>(min<VT>(-1, y.u), x.l), fdiv<VT>(y.u, x.u + VT{1}) + VT{1}));
+      z.u.meet(max<VT>(cdiv<VT>(y.l, x.u + VT{1}) - VT{1}, fdiv<VT>(max<VT>(1,y.l), x.l)));
     }
-    z.meet(zr);
+    else if(x.is_singleton(VT{0})) {
+      if(y.l < 0) { z.u.meet(min<VT>(-1, y.u) - VT{1}); }
+      if(y.u > 0) { z.l.meet(max<VT>(1, y.l) + VT{1}); }
+    }
+    else if(x.is_singleton(VT{-1})) {
+      if(y.l < 0 && y.u <= 0) { z.l.meet(-min<VT>(-1, y.u)); }
+      else if(y.u > 0 && y.l >= 0) { z.u.meet(-max<VT>(1, y.l)); }
+    }
+    else {
+      if(x.l <= -2 && x.u == -1) {
+        if(y.l < 0 && y.u <= 0) { z.l.meet(cdiv<VT>(min<VT>(-1, y.u), x.l)); }
+        else if(y.u > 0 && y.l >= 0) { z.u.meet(fdiv<VT>(max<VT>(1, y.l), x.l)); }
+      }
+      else if(x.l == 0 && x.u > 0) {
+        if(y.l < 0 && y.u <= 0) { z.u.meet(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1}); }
+        else if(y.u > 0 && y.l >= 0) { z.l.meet(fdiv<VT>(max<VT>(1, y.l), x.u + VT{1}) + VT{1}); }
+      }
+    }
     if(z.is_bot()) { return; }
   }
 
@@ -798,89 +769,6 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
   x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
   x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
 }
-
-// TEST supposing y.l > 0
-
-  // // // DEN (z.fdiv_den(x, y);)
-  // if(x.l > 0 || x.u + VT{1} < 0) {
-  //   z.l.meet(min(fdiv<VT>(y.l, x.u + VT{1}), fdiv<VT>(y.u, x.u + VT{1})) + VT{1});
-  //   z.u.meet(max(fdiv<VT>(y.l, x.l), fdiv<VT>(y.u, x.l)));
-  // }
-  // else if(x.is_singleton(VT{0})) {
-  //   z.l.meet(y.l + VT{1});
-  // }
-  // else if(x.is_singleton(VT{-1})) {
-  //   z.u.meet(-y.l);
-  // }
-  // else {
-  //   // I think this else branch simplifies to:
-
-  //   // // CASE (A): x.l <= -2 < 0 <= x.u
-  //   // // no-op (-1, 0 both in x).
-  //   // // CASE (B): x.l <= -2 < -1 = x.u
-  //   // if(x.l <= -2 && x.u == -1) z.u.meet(-y.l)
-
-  //   // // CASE (C): x.l = -1 < 0 <= x.u
-  //   // // no-op (-1, 0 both in x).
-  //   // // CASE (D): x.l = 0 < x.u
-  //   // else if(x.l == 0 && x.u > 0) z.l.meet(fdiv<VT>(y.l, VT{2}) + VT{1});
-
-  //   ZInterval<VT> r = ZInterval<VT>::bot();
-  //   if(x.l <= -2) {
-  //     r.l.join(-y.u + VT{1});
-  //     r.u.join(fdiv<VT>(y.l, x.l));
-  //   }
-  //   if(x.contains(VT{0})) {
-  //     r.l.join(y.l + VT{1});
-  //     r.u.join_top();
-  //   }
-  //   if(x.contains(VT{-1})) {
-  //     r.l.join_top();
-  //     r.u.join(-y.l);
-  //   }
-  //   if(x.u > 0) {
-  //     r.l.join(fdiv<VT>(y.l, x.u + VT{1}) + VT{1});
-  //     r.u.join(y.u);
-  //   }
-  //   z.meet(r);
-  // }
-  // if(z.is_bot()) { return; }
-
-// // TEST supposing y.u < 0
-//   if(x.l > 0 || x.u + VT{1} < 0) {
-//     z.l.meet(min(cdiv<VT>(y.l, x.l), cdiv<VT>(y.u, x.l)));
-//     z.u.meet(max(cdiv<VT>(y.l, x.u + VT{1}), cdiv<VT>(y.u, x.u + VT{1})) - VT{1});
-//   }
-//   else if(x.is_singleton(VT{0})) {
-//     z.u.meet(y.u - VT{1});
-//   }
-//   else if(x.is_singleton(VT{-1})) {
-//     z.l.meet(-min<VT>(VT{-1}, y.u));
-//   }
-//   else {
-//     ZInterval<VT> r;
-//     if(x.l <= -2) {
-//       r.l.meet(cdiv<VT>(y.u, x.l));
-//       r.u.meet(-y.l - VT{1});
-//     }
-//     else {
-//       r.meet_bot();
-//     }
-//     if(x.contains(VT{0})) {
-//       r.u.join(y.u - VT{1});
-//       r.l.join_top();
-//     }
-//     if(x.contains(VT{-1})) {
-//       r.l.join(-min<VT>(VT{-1}, y.u));
-//       r.u.join_top();
-//     }
-//     if(x.u > 0) {
-//       r.l.join(y.l);
-//       r.u.join(cdiv<VT>(y.u, x.u + VT{1}) - VT{1});
-//     }
-//     z.meet(r);
-//   }
-//   if(z.is_bot()) { return; }
 
 template<class VT>
 CUDA INLINE constexpr void zcdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
