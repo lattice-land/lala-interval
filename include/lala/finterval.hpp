@@ -355,7 +355,7 @@ public:
   // Let a = min(b, x), we update x according to a and b.
   CUDA INLINE constexpr this_type& min_back(basic_type a, basic_type b) {
     if (a.is_bot() || b.is_bot()) return meet_bot();
-    l.meet(a.lb);
+    l.meet(a.l);
     if (a.u < b.l) u.meet(a.u);
     return *this;
   }
@@ -407,7 +407,7 @@ public:
       l.meet(VT{1.0});
       u.meet(VT{1.0});
     }
-    else if (!contains(VT{1.0}) || a.l() > b.u) {
+    else if (!contains(VT{1.0}) || a.l > b.u) {
       l.meet(VT{0.0});
       u.meet(VT{0.0});
     }

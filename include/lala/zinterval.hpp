@@ -16,6 +16,10 @@ CUDA INLINE constexpr ZInterval<VT, Mem> join(ZInterval<VT, Mem> a, ZInterval<VT
 template <class VT, class Mem>
 CUDA INLINE constexpr ZInterval<VT, Mem> join_nobot(ZInterval<VT, Mem> a, ZInterval<VT, Mem> b);
 
+namespace tell {
+template<class VT>
+CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT,battery::local_memory>& x, ZInterval<VT,battery::local_memory>& y, ZInterval<VT,battery::local_memory>& z);
+}
 template <class VT, class Mem = battery::local_memory>
 class ZInterval {
 public:
@@ -28,6 +32,10 @@ public:
 
   template <class VT2, class Mem2>
   friend class ZInterval;
+
+  template<class VT2>
+  friend CUDA INLINE constexpr void tell::zfdiv_fast2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
+
 
   constexpr static const bool is_totally_ordered = false;
   constexpr static const char* name = "ZInterval";
@@ -471,9 +479,17 @@ public:
         u.meet(max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(b.u, a.u + VT{1})) - VT{1});
       }
       else {
-        meet(::lala::join(
-          basic_type::top().fdiv_den(a, basic_type(b.l, -1)),
-          basic_type::top().fdiv_den(a, basic_type(1, b.u))));
+        l.meet(min<VT>(
+          min(fdiv<VT>(VT{1}, a.u + VT{1}), fdiv<VT>(b.u, a.u + VT{1})) + VT{1},  // b.l > 0
+          min(cdiv<VT>(b.l, a.l), cdiv<VT>(VT{-1}, a.l))                           // b.u < 0
+        ));
+        u.meet(max<VT>(
+          max(fdiv<VT>(VT{1}, a.l), fdiv<VT>(b.u, a.l)),                         // b.l > 0
+          max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(VT{-1}, a.u + VT{1})) - VT{1}  // b.u < 0
+        ));
+        // meet(::lala::join(
+        //   basic_type::top().fdiv_den(a, basic_type(b.l, -1)),
+        //   basic_type::top().fdiv_den(a, basic_type(1, b.u))));
       }
     }
     else if(a.l == 0 && a.u == 0) {
@@ -481,20 +497,89 @@ public:
       else if(b.u < 0) { u.meet(b.u - VT{1}); }
     }
     else if(a.l == -1 && a.u == -1) {
-      if(b.l > 0) { u.meet(-b.l); }
-      else if(b.u < 0) { l.meet(-b.u); }
-      else {
-        // note: join_nobot is fine here as all arguments are normalized (either bot or non-empty).
-        meet(::lala::join_nobot(
-          b.l != 0 ? basic_type(1, UB2::top()) : basic_type::bot(),
-          b.u != 0 ? basic_type(LB2::top(), -1) : basic_type::bot()));
-      }
+      // NOTE: simplified from paper.
+      if(b.l >= 0) { u.meet(-max<VT>(VT{1}, b.l)); }
+      if(b.u <= 0) { l.meet(-min<VT>(VT{-1}, b.u)); }
+      // if(b.l > 0) { u.meet(-b.l); }
+      // else if(b.u < 0) { l.meet(-b.u); }
+      // else {
+      //   // note: join_nobot is fine here as all arguments are normalized (either bot or non-empty).
+      //   meet(::lala::join_nobot(
+      //     b.l != 0 ? basic_type(1, UB2::top()) : basic_type::bot(),
+      //     b.u != 0 ? basic_type(LB2::top(), -1) : basic_type::bot()));
+      // }
     }
     else {
-      basic_type r(basic_type::top().fdiv_den(basic_type(a.l, -2), b));
-      r.join(basic_type::top().fdiv_den(basic_type(max<VT>(a.l,-1),-1), b));
-      r.join(basic_type::top().fdiv_den(basic_type(0, min<VT>(a.u, 0)), b));
-      r.join(basic_type::top().fdiv_den(basic_type(1, a.u), b));
+      basic_type r;
+      if(a.l <= -2) {
+        if(b.l > 0) {
+          r.l.meet(min(fdiv<VT>(b.l, VT{-2} + VT{1}), fdiv<VT>(b.u, VT{-2} + VT{1})) + VT{1});
+          r.u.meet(max(fdiv<VT>(b.l, a.l), fdiv<VT>(b.u, a.l)));
+        }
+        else if(b.u < 0) {
+          r.l.meet(min(cdiv<VT>(b.l, a.l), cdiv<VT>(b.u, a.l)));
+          r.u.meet(max(cdiv<VT>(b.l, VT{-2} + VT{1}), cdiv<VT>(b.u, VT{-2} + VT{1})) - VT{1});
+        }
+        else {
+          r.l.meet(min<VT>(
+            min(fdiv<VT>(VT{1}, VT{-2} + VT{1}), fdiv<VT>(b.u, VT{-2} + VT{1})) + VT{1},  // b.l > 0
+            min(cdiv<VT>(b.l, a.l), cdiv<VT>(VT{-1}, a.l))                           // b.u < 0
+          ));
+          r.u.meet(max<VT>(
+            max(fdiv<VT>(VT{1}, a.l), fdiv<VT>(b.u, a.l)),                         // b.l > 0
+            max(cdiv<VT>(b.l, VT{-2} + VT{1}), cdiv<VT>(VT{-1}, VT{-2} + VT{1})) - VT{1}  // y.u < 0
+          ));
+        }
+      }
+      else {
+        r.meet_bot();
+      }
+
+      basic_type r2;
+      if(a.contains(VT{0})) {
+        if(b.l > 0) { r2.l.meet(b.l + VT{1}); }
+        else if(b.u < 0) { r2.u.meet(b.u - VT{1}); }
+        r.join(r2);
+        r2.join_top();
+      }
+
+      if(a.contains(VT{-1})) {
+        if(b.l >= 0) { r2.u.meet(-max<VT>(VT{1}, b.l)); }
+        if(b.u <= 0) { r2.l.meet(-min<VT>(VT{-1}, b.u)); }
+        r.join(r2);
+        r2.join_top();
+      }
+
+      if(a.u > 0) {
+        if(b.l > 0) {
+          r2.l.meet(min(fdiv<VT>(b.l, a.u + VT{1}), fdiv<VT>(b.u, a.u + VT{1})) + VT{1});
+          r2.u.meet(max(fdiv<VT>(b.l, VT{1}), fdiv<VT>(b.u, VT{1})));
+        }
+        else if(b.u < 0) {
+          r2.l.meet(min(cdiv<VT>(b.l, VT{1}), cdiv<VT>(b.u, VT{1})));
+          r2.u.meet(max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(b.u, a.u + VT{1})) - VT{1});
+        }
+        else {
+          // meet(::lala::join(
+          //   basic_type::top().fdiv_den(a, basic_type(b.l, -1)),
+          //   basic_type::top().fdiv_den(a, basic_type(1, b.u))));
+          r2.l.meet(min<VT>(
+            min(fdiv<VT>(VT{1}, a.u + VT{1}), fdiv<VT>(b.u, a.u + VT{1})) + VT{1},  // b.l > 0
+            min(cdiv<VT>(b.l, VT{1}), cdiv<VT>(VT{-1}, VT{1}))                           // b.u < 0
+          ));
+          r2.u.meet(max<VT>(
+            max(fdiv<VT>(VT{1}, VT{1}), fdiv<VT>(b.u, VT{1})),                         // b.l > 0
+            max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(VT{-1}, a.u + VT{1})) - VT{1}  // b.u < 0
+          ));
+        }
+        r.join(r2);
+        r2.join_top();
+      }
+
+      // basic_type r(basic_type::top().fdiv_den(basic_type(a.l, -2), b));
+      // r.join(basic_type::top().fdiv_den(basic_type(0, min<VT>(a.u, 0)), b));
+      // r.join(basic_type::top().fdiv_den(basic_type(max<VT>(a.l,-1),-1), b));
+      // r.join(basic_type::top().fdiv_den(basic_type(1, a.u), b));
       meet(r);
     }
     return *this;
@@ -625,6 +710,186 @@ CUDA INLINE constexpr void zfdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInter
 }
 
 template<class VT>
+CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::fdiv;
+  using battery::cdiv;
+  using battery::min;
+  using battery::max;
+  z.neq_zero();
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  if(x.l.is_top() || x.u.is_top() || y.l.is_top() || y.u.is_top() || z.l.is_top() || z.u.is_top()) { return; }
+
+  // DIV (x.fdiv(y, z);)
+  x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  if(x.is_bot()) { return; }
+
+  // DEN (z.fdiv_den(x, y);)
+  if(x.l > 0 || x.u + VT{1} < 0) {
+    if(y.l > 0) {
+      z.l.meet(min(fdiv<VT>(y.l, x.u + VT{1}), fdiv<VT>(y.u, x.u + VT{1})) + VT{1});
+      z.u.meet(max(fdiv<VT>(y.l, x.l), fdiv<VT>(y.u, x.l)));
+    }
+    else if(y.u < 0) {
+      z.l.meet(min(cdiv<VT>(y.l, x.l), cdiv<VT>(y.u, x.l)));
+      z.u.meet(max(cdiv<VT>(y.l, x.u + VT{1}), cdiv<VT>(y.u, x.u + VT{1})) - VT{1});
+    }
+    else {
+      z.l.meet(min<VT>(
+        min(fdiv<VT>(VT{1}, x.u + VT{1}), fdiv<VT>(y.u, x.u + VT{1})) + VT{1},  // y.l > 0
+        min(cdiv<VT>(y.l, x.l), cdiv<VT>(VT{-1}, x.l))                           // y.u < 0
+      ));
+      z.u.meet(max<VT>(
+        max(fdiv<VT>(VT{1}, x.l), fdiv<VT>(y.u, x.l)),                         // y.l > 0
+        max(cdiv<VT>(y.l, x.u + VT{1}), cdiv<VT>(VT{-1}, x.u + VT{1})) - VT{1}  // y.u < 0
+      ));
+    }
+  }
+  else if(x.is_singleton(VT{0})) {
+    if(y.l > 0) { z.l.meet(y.l + VT{1}); }
+    else if(y.u < 0) { z.u.meet(y.u - VT{1}); }
+  }
+  else if(x.is_singleton(VT{-1})) {
+    // NOTE: simplified from paper.
+    if(y.l >= 0) { z.u.meet(min<VT>(VT{-1}, -y.l)); }
+    if(y.u <= 0) { z.l.meet(max<VT>(VT{1}, -y.u)); }
+  }
+  else {
+    ZInterval<VT> r = ZInterval<VT>::bot();
+    if(x.l <= -2) {
+      if(y.l > 0) {  // note: probably y.l >= 0 also works.
+        r.l.join(-y.u + VT{1});
+        r.u.join(fdiv<VT>(y.l, x.l));
+      }
+      else if(y.u < 0) { // note: probably y.u <= 0 also works.
+        r.l.join(cdiv<VT>(y.u, x.l));
+        r.u.join(-y.l - VT{1});
+      }
+      else {
+        r.l.join(-y.u + VT{1});
+        r.u.join(-y.l - VT{1});
+      }
+    }
+    if(x.contains(VT{0})) {
+      if(y.l > 0) { r.l.join(y.l + VT{1}); r.u.join_top(); }
+      else if(y.u < 0) { r.u.join(y.u - VT{1}); r.l.join_top(); }
+      else { r.join_top(); }
+    }
+    if(x.contains(VT{-1})) {
+      r.l.join(y.u <= 0 ? max<VT>(VT{1}, -y.u) : ZInterval<VT>::lb_type::top().load());
+      r.u.join(y.l >= 0 ? min<VT>(VT{-1}, -y.l) : ZInterval<VT>::ub_type::top().load());
+    }
+    if(x.u > 0) {
+      if(y.l > 0) {
+        r.l.join(fdiv<VT>(y.l, x.u + VT{1}) + VT{1});
+        r.u.join(y.u);
+      }
+      else if(y.u < 0) {
+        r.l.join(y.l);
+        r.u.join(cdiv<VT>(y.u, x.u + VT{1}) - VT{1});
+      }
+      else {
+        r.join(y);
+      }
+    }
+    z.meet(r);
+  }
+  if(z.is_bot()) { return; }
+
+  // NUM (y.fdiv_num(x, z);)
+  y.l.meet(min(min<VT>(x.l * z.l, x.l * z.u), min<VT>((x.u + VT{1}) * z.l + VT{1}, (x.u + VT{1}) * z.u + VT{1})));
+  y.u.meet(max(max<VT>(x.l * z.l, x.l * z.u), max<VT>((x.u + VT{1}) * z.l - VT{1}, (x.u + VT{1}) * z.u - VT{1})));
+  if(y.is_bot()) { return; }
+
+  // DIV (x.fdiv(y, z);)
+  x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+}
+
+// TEST supposing y.l > 0
+
+  // // // DEN (z.fdiv_den(x, y);)
+  // if(x.l > 0 || x.u + VT{1} < 0) {
+  //   z.l.meet(min(fdiv<VT>(y.l, x.u + VT{1}), fdiv<VT>(y.u, x.u + VT{1})) + VT{1});
+  //   z.u.meet(max(fdiv<VT>(y.l, x.l), fdiv<VT>(y.u, x.l)));
+  // }
+  // else if(x.is_singleton(VT{0})) {
+  //   z.l.meet(y.l + VT{1});
+  // }
+  // else if(x.is_singleton(VT{-1})) {
+  //   z.u.meet(-y.l);
+  // }
+  // else {
+  //   // I think this else branch simplifies to:
+
+  //   // // CASE (A): x.l <= -2 < 0 <= x.u
+  //   // // no-op (-1, 0 both in x).
+  //   // // CASE (B): x.l <= -2 < -1 = x.u
+  //   // if(x.l <= -2 && x.u == -1) z.u.meet(-y.l)
+
+  //   // // CASE (C): x.l = -1 < 0 <= x.u
+  //   // // no-op (-1, 0 both in x).
+  //   // // CASE (D): x.l = 0 < x.u
+  //   // else if(x.l == 0 && x.u > 0) z.l.meet(fdiv<VT>(y.l, VT{2}) + VT{1});
+
+  //   ZInterval<VT> r = ZInterval<VT>::bot();
+  //   if(x.l <= -2) {
+  //     r.l.join(-y.u + VT{1});
+  //     r.u.join(fdiv<VT>(y.l, x.l));
+  //   }
+  //   if(x.contains(VT{0})) {
+  //     r.l.join(y.l + VT{1});
+  //     r.u.join_top();
+  //   }
+  //   if(x.contains(VT{-1})) {
+  //     r.l.join_top();
+  //     r.u.join(-y.l);
+  //   }
+  //   if(x.u > 0) {
+  //     r.l.join(fdiv<VT>(y.l, x.u + VT{1}) + VT{1});
+  //     r.u.join(y.u);
+  //   }
+  //   z.meet(r);
+  // }
+  // if(z.is_bot()) { return; }
+
+// // TEST supposing y.u < 0
+//   if(x.l > 0 || x.u + VT{1} < 0) {
+//     z.l.meet(min(cdiv<VT>(y.l, x.l), cdiv<VT>(y.u, x.l)));
+//     z.u.meet(max(cdiv<VT>(y.l, x.u + VT{1}), cdiv<VT>(y.u, x.u + VT{1})) - VT{1});
+//   }
+//   else if(x.is_singleton(VT{0})) {
+//     z.u.meet(y.u - VT{1});
+//   }
+//   else if(x.is_singleton(VT{-1})) {
+//     z.l.meet(-min<VT>(VT{-1}, y.u));
+//   }
+//   else {
+//     ZInterval<VT> r;
+//     if(x.l <= -2) {
+//       r.l.meet(cdiv<VT>(y.u, x.l));
+//       r.u.meet(-y.l - VT{1});
+//     }
+//     else {
+//       r.meet_bot();
+//     }
+//     if(x.contains(VT{0})) {
+//       r.u.join(y.u - VT{1});
+//       r.l.join_top();
+//     }
+//     if(x.contains(VT{-1})) {
+//       r.l.join(-min<VT>(VT{-1}, y.u));
+//       r.u.join_top();
+//     }
+//     if(x.u > 0) {
+//       r.l.join(y.l);
+//       r.u.join(cdiv<VT>(y.u, x.u + VT{1}) - VT{1});
+//     }
+//     z.meet(r);
+//   }
+//   if(z.is_bot()) { return; }
+
+template<class VT>
 CUDA INLINE constexpr void zcdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
   x.cdiv(y, z);
@@ -674,13 +939,13 @@ CUDA void splitjoin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z, ZInter
     x.join(x2);
     y.join(y2);
     z.join(z2);
-    prop(x,y,z);
+    // prop(x,y,z);
   }
 }
 
 template<class VT>
 CUDA INLINE constexpr void zfdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  splitjoin(x, y, z, z, VT{0}, zfdiv_fast<VT>);
+  splitjoin(x, y, z, z, VT{0}, zfdiv_fast2<VT>);
 }
 
 template<class VT>
@@ -814,151 +1079,6 @@ CUDA INLINE constexpr bool zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<V
 }
 
 } // namespace ask
-} // namespace lala
-
-#include "lala/finterval.hpp"
-
-namespace lala {
-namespace boundr {
-
-// TODO: if VT is already a floating-point type, rd_cast / ru_cast are not going to behave as expected. We need floor/ceil instead.
-
-template<class FItv, class FProp, class VT>
-CUDA INLINE constexpr void ftell(FProp p, ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  using battery::rd_cast;
-  using battery::ru_cast;
-  using FT = typename FItv::value_type;
-  FItv xf(rd_cast<FT, VT>(x.lb()), ru_cast<FT, VT>(x.ub()));
-  FItv yf(rd_cast<FT, VT>(y.lb()), ru_cast<FT, VT>(y.ub()));
-  FItv zf(rd_cast<FT, VT>(z.lb()), ru_cast<FT, VT>(z.ub()));
-  p(xf, yf, zf);
-  x.meet(ZInterval<VT>(ru_cast<VT, FT>(xf.lb()), rd_cast<VT, FT>(xf.ub())));
-  y.meet(ZInterval<VT>(ru_cast<VT, FT>(yf.lb()), rd_cast<VT, FT>(yf.ub())));
-  z.meet(ZInterval<VT>(ru_cast<VT, FT>(zf.lb()), rd_cast<VT, FT>(zf.ub())));
-}
-
-template<class FItv, class FAsk, class VT>
-CUDA INLINE constexpr bool fask(FAsk ask, ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  using battery::rd_cast;
-  using battery::ru_cast;
-  using FT = typename FItv::value_type;
-  FItv xf(rd_cast<FT, VT>(x.lb()), ru_cast<FT, VT>(x.ub()));
-  FItv yf(rd_cast<FT, VT>(y.lb()), ru_cast<FT, VT>(y.ub()));
-  FItv zf(rd_cast<FT, VT>(z.lb()), ru_cast<FT, VT>(z.ub()));
-  return ask(xf, yf, zf);
-}
-
-namespace tell {
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  ::lala::boundr::ftell<FItv>(::lala::tell::fadd<typename FItv::value_type>, x, y, z);
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void zsub(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  ::lala::boundr::ftell<FItv>(::lala::tell::fsub<typename FItv::value_type>, x, y, z);
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  ::lala::boundr::ftell<FItv>(::lala::tell::fmul<typename FItv::value_type>, x, y, z);
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void zfdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  using battery::rd_cast;
-  using battery::ru_cast;
-  using FT = typename FItv::value_type;
-  FItv xf(rd_cast<FT, VT>(x.lb() /* - VT{1} */), ru_cast<FT, VT>(x.ub() + VT{1}));
-  FItv yf(rd_cast<FT, VT>(y.lb()), ru_cast<FT, VT>(y.ub()));
-  FItv zf(rd_cast<FT, VT>(z.lb()), ru_cast<FT, VT>(z.ub()));
-  ::lala::tell::fdiv<typename FItv::value_type>(xf, yf, zf);
-  x.meet(ZInterval<VT>(rd_cast<VT, FT>(xf.lb()), rd_cast<VT, FT>(xf.ub())));
-  y.meet(ZInterval<VT>(ru_cast<VT, FT>(yf.lb()), rd_cast<VT, FT>(yf.ub())));
-  z.meet(ZInterval<VT>(ru_cast<VT, FT>(zf.lb()), rd_cast<VT, FT>(zf.ub())));
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void zcdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  using battery::rd_cast;
-  using battery::ru_cast;
-  using FT = typename FItv::value_type;
-  FItv xf(rd_cast<FT, VT>(x.lb() - VT{1}), ru_cast<FT, VT>(x.ub() /* + VT{1} */));
-  FItv yf(rd_cast<FT, VT>(y.lb()), ru_cast<FT, VT>(y.ub()));
-  FItv zf(rd_cast<FT, VT>(z.lb()), ru_cast<FT, VT>(z.ub()));
-  ::lala::tell::fdiv<typename FItv::value_type>(xf, yf, zf);
-  x.meet(ZInterval<VT>(ru_cast<VT, FT>(xf.lb()), ru_cast<VT, FT>(xf.ub())));
-  y.meet(ZInterval<VT>(ru_cast<VT, FT>(yf.lb()), rd_cast<VT, FT>(yf.ub())));
-  z.meet(ZInterval<VT>(ru_cast<VT, FT>(zf.lb()), rd_cast<VT, FT>(zf.ub())));
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void ztdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  using battery::rd_cast;
-  using battery::ru_cast;
-  using FT = typename FItv::value_type;
-  FItv xf(rd_cast<FT, VT>(x.lb() > 0 ? x.lb().load() : x.lb() - VT{1}), ru_cast<FT, VT>(x.ub() < 0 ? x.ub().load() : x.ub() + VT{1}));
-  FItv yf(rd_cast<FT, VT>(y.lb()), ru_cast<FT, VT>(y.ub()));
-  FItv zf(rd_cast<FT, VT>(z.lb()), ru_cast<FT, VT>(z.ub()));
-  ::lala::tell::fdiv<typename FItv::value_type>(xf, yf, zf);
-  if(xf.ub() <= FT{0.0}) {
-    x.meet(ZInterval<VT>(ru_cast<VT, FT>(xf.lb()), ru_cast<VT, FT>(xf.ub())));
-  }
-  else if(xf.lb() >= FT{0.0}) {
-    x.meet(ZInterval<VT>(rd_cast<VT, FT>(xf.lb()), rd_cast<VT, FT>(xf.ub())));
-  }
-  else {
-    x.meet(ZInterval<VT>(rd_cast<VT, FT>(xf.lb()), ru_cast<VT, FT>(xf.ub())));
-  }
-  y.meet(ZInterval<VT>(ru_cast<VT, FT>(yf.lb()), rd_cast<VT, FT>(yf.ub())));
-  z.meet(ZInterval<VT>(ru_cast<VT, FT>(zf.lb()), rd_cast<VT, FT>(zf.ub())));
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr void zediv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  using battery::rd_cast;
-  using battery::ru_cast;
-  using FT = typename FItv::value_type;
-  FItv xf(rd_cast<FT, VT>(z.lb() >= 0 ? x.lb().load() : x.lb() - VT{1}), ru_cast<FT, VT>(z.ub() <= 0 ? x.ub().load() : x.ub() + VT{1}));
-  FItv yf(rd_cast<FT, VT>(y.lb()), ru_cast<FT, VT>(y.ub()));
-  FItv zf(rd_cast<FT, VT>(z.lb()), ru_cast<FT, VT>(z.ub()));
-  ::lala::tell::fdiv<typename FItv::value_type>(xf, yf, zf);
-  if(zf.ub() <= FT{0.0}) {
-    x.meet(ZInterval<VT>(ru_cast<VT, FT>(xf.lb()), ru_cast<VT, FT>(xf.ub())));
-  }
-  else if(zf.lb() >= FT{0.0}) {
-    x.meet(ZInterval<VT>(rd_cast<VT, FT>(xf.lb()), rd_cast<VT, FT>(xf.ub())));
-  }
-  else {
-    x.meet(ZInterval<VT>(rd_cast<VT, FT>(xf.lb()), ru_cast<VT, FT>(xf.ub())));
-  }
-  y.meet(ZInterval<VT>(ru_cast<VT, FT>(yf.lb()), rd_cast<VT, FT>(yf.ub())));
-  z.meet(ZInterval<VT>(ru_cast<VT, FT>(zf.lb()), rd_cast<VT, FT>(zf.ub())));
-}
-
-} // namespace tell
-
-namespace ask {
-
-template<class FItv, class VT>
-CUDA INLINE constexpr bool zadd(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  return ::lala::boundr::fask<FItv>(::lala::ask::fadd<typename FItv::value_type>, x, y, z);
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr bool zsub(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  return ::lala::boundr::fask<FItv>(::lala::ask::fsub<typename FItv::value_type>, x, y, z);
-}
-
-template<class FItv, class VT>
-CUDA INLINE constexpr bool zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
-  return ::lala::boundr::fask<FItv>(::lala::ask::fmul<typename FItv::value_type>, x, y, z);
-}
-
-} // namespace ask
-} // namespace boundr
-
 } // namespace lala
 
 #endif
