@@ -725,76 +725,69 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
   if(x.is_bot()) { return; }
 
   // DEN (z.fdiv_den(x, y);)
-  if(x.l > 0 || x.u + VT{1} < 0) {
-    if(y.l > 0) {
-      z.l.meet(min(fdiv<VT>(y.l, x.u + VT{1}), fdiv<VT>(y.u, x.u + VT{1})) + VT{1});
-      z.u.meet(max(fdiv<VT>(y.l, x.l), fdiv<VT>(y.u, x.l)));
-    }
-    else if(y.u < 0) {
-      z.l.meet(min(cdiv<VT>(y.l, x.l), cdiv<VT>(y.u, x.l)));
-      z.u.meet(max(cdiv<VT>(y.l, x.u + VT{1}), cdiv<VT>(y.u, x.u + VT{1})) - VT{1});
-    }
-    else {
-      z.l.meet(min<VT>(
-        min(fdiv<VT>(VT{1}, x.u + VT{1}), fdiv<VT>(y.u, x.u + VT{1})) + VT{1},  // y.l > 0
-        min(cdiv<VT>(y.l, x.l), cdiv<VT>(VT{-1}, x.l))                           // y.u < 0
-      ));
-      z.u.meet(max<VT>(
-        max(fdiv<VT>(VT{1}, x.l), fdiv<VT>(y.u, x.l)),                         // y.l > 0
-        max(cdiv<VT>(y.l, x.u + VT{1}), cdiv<VT>(VT{-1}, x.u + VT{1})) - VT{1}  // y.u < 0
-      ));
-    }
-  }
-  else if(x.is_singleton(VT{0})) {
-    if(y.l > 0) { z.l.meet(y.l + VT{1}); }
-    else if(y.u < 0) { z.u.meet(y.u - VT{1}); }
-  }
-  else if(x.is_singleton(VT{-1})) {
-    // NOTE: simplified from paper.
-    if(y.l >= 0) { z.u.meet(min<VT>(VT{-1}, -y.l)); }
-    if(y.u <= 0) { z.l.meet(max<VT>(VT{1}, -y.u)); }
+  // We split on `y`: [0,0], [-oo, -1] and [1, oo]
+  // CASE 1: [0,0]
+  if(y.l <= 0 && y.u >= 0 && x.l <= 0 && x.u >= 0) {
+    // skip, there is nothing we can do.
   }
   else {
-    ZInterval<VT> r = ZInterval<VT>::bot();
-    if(x.l <= -2) {
-      if(y.l > 0) {  // note: probably y.l >= 0 also works.
-        r.l.join(-y.u + VT{1});
-        r.u.join(fdiv<VT>(y.l, x.l));
+    ZInterval<VT> ys(y);
+    ZInterval<VT> zs(z);
+    ZInterval<VT> zr = ZInterval<VT>::bot();
+    // CASE 2: [-oo, -1]
+    if(y.l < 0) {
+      y.u.meet(VT{-1});
+      if(x.l > 0) {
+        z.l.meet(cdiv<VT>(y.l, x.l));
+        z.u.meet(cdiv<VT>(y.u, x.u + VT{1}) - VT{1});
       }
-      else if(y.u < 0) { // note: probably y.u <= 0 also works.
-        r.l.join(cdiv<VT>(y.u, x.l));
-        r.u.join(-y.l - VT{1});
+      else if(x.u < VT{-1}) {
+        z.l.meet(cdiv<VT>(y.u, x.l));
+        z.u.meet(cdiv<VT>(y.l, x.u + VT{1}) - VT{1});
       }
-      else {
-        r.l.join(-y.u + VT{1});
-        r.u.join(-y.l - VT{1});
+      else if(x.is_singleton(VT{0})) {
+        z.u.meet(y.u - VT{1});
       }
-    }
-    if(x.contains(VT{0})) {
-      if(y.l > 0) { r.l.join(y.l + VT{1}); r.u.join_top(); }
-      else if(y.u < 0) { r.u.join(y.u - VT{1}); r.l.join_top(); }
-      else { r.join_top(); }
-    }
-    if(x.contains(VT{-1})) {
-      r.l.join(y.u <= 0 ? max<VT>(VT{1}, -y.u) : ZInterval<VT>::lb_type::top().load());
-      r.u.join(y.l >= 0 ? min<VT>(VT{-1}, -y.l) : ZInterval<VT>::ub_type::top().load());
-    }
-    if(x.u > 0) {
-      if(y.l > 0) {
-        r.l.join(fdiv<VT>(y.l, x.u + VT{1}) + VT{1});
-        r.u.join(y.u);
-      }
-      else if(y.u < 0) {
-        r.l.join(y.l);
-        r.u.join(cdiv<VT>(y.u, x.u + VT{1}) - VT{1});
+      else if(x.is_singleton(VT{-1})) {
+        z.l.meet(-y.u);
       }
       else {
-        r.join(y);
+        if(x.l <= -2 && x.u == -1) { z.l.meet(cdiv<VT>(y.u, x.l)); }
+        else if(x.l == 0 && x.u > 0) { z.u.meet(cdiv<VT>(y.u, x.u + VT{1}) - VT{1}); }
       }
+      zr.join(z);
+      y = ys;
+      z = zs;
     }
-    z.meet(r);
+
+    // CASE 3: [1, oo]
+    if(y.u > 0) {
+      y.l.meet(VT{1});
+      if(x.l > 0) {
+        z.l.meet(fdiv<VT>(y.l, x.u + VT{1}) + VT{1});
+        z.u.meet(fdiv<VT>(y.u, x.l));
+      }
+      else if(x.u < VT{-1}) {
+        z.l.meet(fdiv<VT>(y.u, x.u + VT{1}) + VT{1});
+        z.u.meet(fdiv<VT>(y.l, x.l));
+      }
+      else if(x.is_singleton(VT{0})) {
+        z.l.meet(y.l + VT{1});
+      }
+      else if(x.is_singleton(VT{-1})) {
+        z.u.meet(-y.l);
+      }
+      else {
+        if(x.l <= -2 && x.u == -1) { z.u.meet(fdiv<VT>(y.l, x.l)); }
+        else if(x.l == 0 && x.u > 0) { z.l.meet(fdiv<VT>(y.l, x.u + VT{1}) + VT{1}); }
+      }
+      zr.join(z);
+      y = ys;
+      z = zs;
+    }
+    z.meet(zr);
+    if(z.is_bot()) { return; }
   }
-  if(z.is_bot()) { return; }
 
   // NUM (y.fdiv_num(x, z);)
   y.l.meet(min(min<VT>(x.l * z.l, x.l * z.u), min<VT>((x.u + VT{1}) * z.l + VT{1}, (x.u + VT{1}) * z.u + VT{1})));
