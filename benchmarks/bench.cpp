@@ -97,7 +97,12 @@ struct Statistics {
   int64_t abstract_propag_ns;
   int64_t concrete_propag_ns;
   std::unordered_map<size_t, size_t> fp_iterations;
-  Statistics() : abstract_propag_ns(0), concrete_propag_ns(0), idempotent_propagations(0), bottom_propagations(0), bottom_concrete(0), incomplete_ask(0) {}
+  size_t not_best[3];
+  Statistics() : abstract_propag_ns(0), concrete_propag_ns(0), idempotent_propagations(0), bottom_propagations(0), bottom_concrete(0), incomplete_ask(0) {
+    for(int i = 0; i < 3; i++) {
+      not_best[i] = 0;
+    }
+  }
   void merge(const Statistics& other) {
     abstract_propag_ns += other.abstract_propag_ns;
     concrete_propag_ns += other.concrete_propag_ns;
@@ -107,6 +112,9 @@ struct Statistics {
     incomplete_ask += other.incomplete_ask;
     for(const auto& [iter, count] : other.fp_iterations) {
       fp_iterations[iter] += count;
+    }
+    for(int i = 0; i < 3; ++i) {
+      not_best[i] += other.not_best[i];
     }
   }
 
@@ -122,6 +130,9 @@ struct Statistics {
     printf("Incomplete ask: %zu (%.2f%%)\n", incomplete_ask, 100.0 * (double)incomplete_ask / (double)total);
     printf("Double propagations: %zu (%.2f%%)\n", fp_iterations[1] + fp_iterations[2], 100.0 * (double)( fp_iterations[1]+fp_iterations[2]) / (double)total);
     printf("Triple propagations: %zu (%.2f%%)\n", fp_iterations[1] + fp_iterations[2] + fp_iterations[3], 100.0 * (double)( fp_iterations[1]+fp_iterations[2]+fp_iterations[3]) / (double)total);
+    printf("Not best on x: %zu (%.2f%%)\n", not_best[0], 100.0 * (double)(not_best[0]) / (double)total);
+    printf("Not best on y: %zu (%.2f%%)\n", not_best[1], 100.0 * (double)(not_best[1]) / (double)total);
+    printf("Not best on z: %zu (%.2f%%)\n", not_best[2], 100.0 * (double)(not_best[2]) / (double)total);
   }
 
   void print_csv(size_t total) {
@@ -211,23 +222,28 @@ int propagate(Sig sig, Itv x, Itv y, Itv z,
       exit(1);
     }
     // Check best propagator.
-    else if(cx != x || cy != y || cz != z) {
-      // Check completeness on singleton
-      if(x.is_singleton() && y.is_singleton() && z.is_singleton()) {
-        std::cout << "Incomplete propagator on singleton for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
-        std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
-        std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
-        exit(1);
-      }
-      else {
-        // if(not_best < 100) {
-        // if(concrete_bot) {
-          // std::cout << "Sound but not the best propagator for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
-          // std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
-          // std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
-        // }
-        // exit(1);
-        ++not_best;
+    else {
+      stats.not_best[0] += cx != x ? 1 : 0;
+      stats.not_best[1] += cy != y ? 1 : 0;
+      stats.not_best[2] += cz != z ? 1 : 0;
+      if(cx != x || cy != y || cz != z) {
+        // Check completeness on singleton
+        if(x.is_singleton() && y.is_singleton() && z.is_singleton()) {
+          std::cout << "Incomplete propagator on singleton for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
+          std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
+          std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
+          exit(1);
+        }
+        else {
+          // if(not_best < 100) {
+          // if(concrete_bot) {
+            // std::cout << "Sound but not the best propagator for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
+            // std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
+            // std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
+          // }
+          // exit(1);
+          ++not_best;
+        }
       }
     }
   }
@@ -422,7 +438,7 @@ void benchmark(const char* itv_name, bool csv) {
             },
             ask::zmul<value_type>); break;
           case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
-            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv<value_type>, // zfdiv_super_half<value_type>, //
+            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv<value_type>,
             ask::zfdiv<value_type>); break;
           case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::zcdiv<FInterval<double>, value_type> : tell::zcdiv_fast<value_type>,

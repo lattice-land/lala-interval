@@ -479,17 +479,9 @@ public:
         u.meet(max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(b.u, a.u + VT{1})) - VT{1});
       }
       else {
-        l.meet(min<VT>(
-          min(fdiv<VT>(VT{1}, a.u + VT{1}), fdiv<VT>(b.u, a.u + VT{1})) + VT{1},  // b.l > 0
-          min(cdiv<VT>(b.l, a.l), cdiv<VT>(VT{-1}, a.l))                           // b.u < 0
-        ));
-        u.meet(max<VT>(
-          max(fdiv<VT>(VT{1}, a.l), fdiv<VT>(b.u, a.l)),                         // b.l > 0
-          max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(VT{-1}, a.u + VT{1})) - VT{1}  // b.u < 0
-        ));
-        // meet(::lala::join(
-        //   basic_type::top().fdiv_den(a, basic_type(b.l, -1)),
-        //   basic_type::top().fdiv_den(a, basic_type(1, b.u))));
+        meet(::lala::join(
+          basic_type::top().fdiv_den(a, basic_type(b.l, -1)),
+          basic_type::top().fdiv_den(a, basic_type(1, b.u))));
       }
     }
     else if(a.l == 0 && a.u == 0) {
@@ -497,89 +489,20 @@ public:
       else if(b.u < 0) { u.meet(b.u - VT{1}); }
     }
     else if(a.l == -1 && a.u == -1) {
-      // NOTE: simplified from paper.
-      if(b.l >= 0) { u.meet(-max<VT>(VT{1}, b.l)); }
-      if(b.u <= 0) { l.meet(-min<VT>(VT{-1}, b.u)); }
-      // if(b.l > 0) { u.meet(-b.l); }
-      // else if(b.u < 0) { l.meet(-b.u); }
-      // else {
-      //   // note: join_nobot is fine here as all arguments are normalized (either bot or non-empty).
-      //   meet(::lala::join_nobot(
-      //     b.l != 0 ? basic_type(1, UB2::top()) : basic_type::bot(),
-      //     b.u != 0 ? basic_type(LB2::top(), -1) : basic_type::bot()));
-      // }
+      if(b.l > 0) { u.meet(-b.l); }
+      else if(b.u < 0) { l.meet(-b.u); }
+      else {
+        // note: join_nobot is fine here as all arguments are normalized (either bot or non-empty).
+        meet(::lala::join_nobot(
+          b.l != 0 ? basic_type(1, UB2::top()) : basic_type::bot(),
+          b.u != 0 ? basic_type(LB2::top(), -1) : basic_type::bot()));
+      }
     }
     else {
-      basic_type r;
-      if(a.l <= -2) {
-        if(b.l > 0) {
-          r.l.meet(min(fdiv<VT>(b.l, VT{-2} + VT{1}), fdiv<VT>(b.u, VT{-2} + VT{1})) + VT{1});
-          r.u.meet(max(fdiv<VT>(b.l, a.l), fdiv<VT>(b.u, a.l)));
-        }
-        else if(b.u < 0) {
-          r.l.meet(min(cdiv<VT>(b.l, a.l), cdiv<VT>(b.u, a.l)));
-          r.u.meet(max(cdiv<VT>(b.l, VT{-2} + VT{1}), cdiv<VT>(b.u, VT{-2} + VT{1})) - VT{1});
-        }
-        else {
-          r.l.meet(min<VT>(
-            min(fdiv<VT>(VT{1}, VT{-2} + VT{1}), fdiv<VT>(b.u, VT{-2} + VT{1})) + VT{1},  // b.l > 0
-            min(cdiv<VT>(b.l, a.l), cdiv<VT>(VT{-1}, a.l))                           // b.u < 0
-          ));
-          r.u.meet(max<VT>(
-            max(fdiv<VT>(VT{1}, a.l), fdiv<VT>(b.u, a.l)),                         // b.l > 0
-            max(cdiv<VT>(b.l, VT{-2} + VT{1}), cdiv<VT>(VT{-1}, VT{-2} + VT{1})) - VT{1}  // y.u < 0
-          ));
-        }
-      }
-      else {
-        r.meet_bot();
-      }
-
-      basic_type r2;
-      if(a.contains(VT{0})) {
-        if(b.l > 0) { r2.l.meet(b.l + VT{1}); }
-        else if(b.u < 0) { r2.u.meet(b.u - VT{1}); }
-        r.join(r2);
-        r2.join_top();
-      }
-
-      if(a.contains(VT{-1})) {
-        if(b.l >= 0) { r2.u.meet(-max<VT>(VT{1}, b.l)); }
-        if(b.u <= 0) { r2.l.meet(-min<VT>(VT{-1}, b.u)); }
-        r.join(r2);
-        r2.join_top();
-      }
-
-      if(a.u > 0) {
-        if(b.l > 0) {
-          r2.l.meet(min(fdiv<VT>(b.l, a.u + VT{1}), fdiv<VT>(b.u, a.u + VT{1})) + VT{1});
-          r2.u.meet(max(fdiv<VT>(b.l, VT{1}), fdiv<VT>(b.u, VT{1})));
-        }
-        else if(b.u < 0) {
-          r2.l.meet(min(cdiv<VT>(b.l, VT{1}), cdiv<VT>(b.u, VT{1})));
-          r2.u.meet(max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(b.u, a.u + VT{1})) - VT{1});
-        }
-        else {
-          // meet(::lala::join(
-          //   basic_type::top().fdiv_den(a, basic_type(b.l, -1)),
-          //   basic_type::top().fdiv_den(a, basic_type(1, b.u))));
-          r2.l.meet(min<VT>(
-            min(fdiv<VT>(VT{1}, a.u + VT{1}), fdiv<VT>(b.u, a.u + VT{1})) + VT{1},  // b.l > 0
-            min(cdiv<VT>(b.l, VT{1}), cdiv<VT>(VT{-1}, VT{1}))                           // b.u < 0
-          ));
-          r2.u.meet(max<VT>(
-            max(fdiv<VT>(VT{1}, VT{1}), fdiv<VT>(b.u, VT{1})),                         // b.l > 0
-            max(cdiv<VT>(b.l, a.u + VT{1}), cdiv<VT>(VT{-1}, a.u + VT{1})) - VT{1}  // b.u < 0
-          ));
-        }
-        r.join(r2);
-        r2.join_top();
-      }
-
-      // basic_type r(basic_type::top().fdiv_den(basic_type(a.l, -2), b));
-      // r.join(basic_type::top().fdiv_den(basic_type(0, min<VT>(a.u, 0)), b));
-      // r.join(basic_type::top().fdiv_den(basic_type(max<VT>(a.l,-1),-1), b));
-      // r.join(basic_type::top().fdiv_den(basic_type(1, a.u), b));
+      basic_type r(basic_type::top().fdiv_den(basic_type(a.l, -2), b));
+      r.join(basic_type::top().fdiv_den(basic_type(max<VT>(a.l,-1),-1), b));
+      r.join(basic_type::top().fdiv_den(basic_type(0, min<VT>(a.u, 0)), b));
+      r.join(basic_type::top().fdiv_den(basic_type(1, a.u), b));
       meet(r);
     }
     return *this;
@@ -709,6 +632,8 @@ CUDA INLINE constexpr void zfdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInter
   x.fdiv(y, z);
 }
 
+// Must be used in cooperation with split on z.
+// precondition: z <= 0 || z >= 0
 template<class VT>
 CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   using battery::fdiv;
@@ -716,6 +641,7 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
   using battery::min;
   using battery::max;
   z.neq_zero();
+  assert(z.ub() < 0 || z.lb() > 0);
   if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
   if(x.l.is_top() || x.u.is_top() || y.l.is_top() || y.u.is_top() || z.l.is_top() || z.u.is_top()) { return; }
 
@@ -725,37 +651,58 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
   if(x.is_bot()) { return; }
 
   // DEN (z.fdiv_den(x, y);)
-  // We split on `y`: [0,0], [-oo, -1] and [1, oo]
-  // CASE 1: [0,0]
   if(y.l <= 0 && y.u >= 0 && x.l <= 0 && x.u >= 0) {
     // skip, there is nothing we can do.
   }
   else {
     if(x.l > 0) {
-      z.l.meet(min<VT>(cdiv<VT>(y.l, x.l), fdiv<VT>(max<VT>(1,y.l), x.u + VT{1}) + VT{1}));
-      z.u.meet(max<VT>(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1}, fdiv<VT>(y.u, x.l)));
+      // z.l.meet(min<VT>(cdiv<VT>(y.l, x.l), fdiv<VT>(max<VT>(1,y.l), x.u + VT{1}) + VT{1}));
+      // z.u.meet(max<VT>(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1}, fdiv<VT>(y.u, x.l)));
+      if(y.l >= 0 && y.u > 0) {
+        z.l.meet(fdiv<VT>(max<VT>(1,y.l), x.u + VT{1}) + VT{1});
+        z.u.meet(fdiv<VT>(y.u, x.l));
+      }
+      else if(y.u < 0 && y.l <= 0) {
+        z.l.meet(cdiv<VT>(y.l, x.l));
+        z.u.meet(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1});
+      }
+      else {
+        z.l.meet(cdiv<VT>(y.l, x.l));
+        z.u.meet(fdiv<VT>(y.u, x.l));
+      }
     }
     else if(x.u < VT{-1}) {
-      z.l.meet(min<VT>(cdiv<VT>(min<VT>(-1, y.u), x.l), fdiv<VT>(y.u, x.u + VT{1}) + VT{1}));
-      z.u.meet(max<VT>(cdiv<VT>(y.l, x.u + VT{1}) - VT{1}, fdiv<VT>(max<VT>(1,y.l), x.l)));
+      // z.l.meet(min<VT>(cdiv<VT>(min<VT>(-1, y.u), x.l), fdiv<VT>(y.u, x.u + VT{1}) + VT{1}));
+      // z.u.meet(max<VT>(cdiv<VT>(y.l, x.u + VT{1}) - VT{1}, fdiv<VT>(max<VT>(1, y.l), x.l)));
+      if(y.l >= 0 && y.u > 0) {
+        z.l.meet(fdiv<VT>(y.u, x.u + VT{1}) + VT{1});
+        z.u.meet(fdiv<VT>(y.l, x.l));
+      }
+      else if(y.l < 0 && y.u <= 0) {
+        z.l.meet(cdiv<VT>(y.u, x.l));
+        z.u.meet(cdiv<VT>(y.l, x.u + VT{1}) - VT{1});
+      }
+      else {
+        z.l.meet(fdiv<VT>(y.u, x.u + VT{1}) + VT{1});
+        z.u.meet(cdiv<VT>(y.l, x.u + VT{1}) - VT{1});
+      }
     }
     else if(x.is_singleton(VT{0})) {
-      if(y.l < 0) { z.u.meet(min<VT>(-1, y.u) - VT{1}); }
-      if(y.u > 0) { z.l.meet(max<VT>(1, y.l) + VT{1}); }
+      if(y.u < 0) { z.u.meet(y.u - VT{1}); }
+      else /* if(y.l > 0) */ { z.l.meet(y.l + VT{1}); }
     }
-    else if(x.is_singleton(VT{-1})) {
-      if(y.l < 0 && y.u <= 0) { z.l.meet(-min<VT>(-1, y.u)); }
-      else if(y.u > 0 && y.l >= 0) { z.u.meet(-max<VT>(1, y.l)); }
+    else if(x.l <= -1 && x.u == -1) {
+      if(y.l < 0 && y.u <= 0) { z.l.meet(cdiv<VT>(min<VT>(-1, y.u), x.l)); }
+      else if(y.u > 0 && y.l >= 0) { z.u.meet(fdiv<VT>(max<VT>(1, y.l), x.l)); }
+      else if(y.l == 0 && y.u == 0) { z.meet_bot(); }
+    }
+    else if(x.l == 0 && x.u > 0) {
+      if(y.l < 0 && y.u <= 0) { z.u.meet(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1}); }
+      else if(y.u > 0 && y.l >= 0) { z.l.meet(fdiv<VT>(max<VT>(1, y.l), x.u + VT{1}) + VT{1}); }
     }
     else {
-      if(x.l <= -2 && x.u == -1) {
-        if(y.l < 0 && y.u <= 0) { z.l.meet(cdiv<VT>(min<VT>(-1, y.u), x.l)); }
-        else if(y.u > 0 && y.l >= 0) { z.u.meet(fdiv<VT>(max<VT>(1, y.l), x.l)); }
-      }
-      else if(x.l == 0 && x.u > 0) {
-        if(y.l < 0 && y.u <= 0) { z.u.meet(cdiv<VT>(min<VT>(-1, y.u), x.u + VT{1}) - VT{1}); }
-        else if(y.u > 0 && y.l >= 0) { z.l.meet(fdiv<VT>(max<VT>(1, y.l), x.u + VT{1}) + VT{1}); }
-      }
+      // assert(false);
+      // never reached after `div`.
     }
     if(z.is_bot()) { return; }
   }
