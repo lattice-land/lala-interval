@@ -373,7 +373,7 @@ private:
     using battery::max;
     assert(b.l != 0 && b.u != 0);
     if(a.is_bot() || b.is_bot()) { meet_bot(); }
-    else if(b.l < 0 && b.u > 0) { // TO CONFIRM: With the split on Z, this part becomes useless (as well as the test in else if)
+    else if(b.l < 0 && b.u > 0) { // With the split on Z, this part becomes useless (as well as the test in else if)
       if(!a.u.is_top()) { l.meet(min<VT>(a.l, -a.u)); }
       if(!a.l.is_top()) { u.meet(max<VT>(-a.l, a.u)); }
     }
@@ -412,7 +412,7 @@ public:
     using battery::max;
     assert(b.l != 0 && b.u != 0);
     if(a.is_bot() || b.is_bot()) { meet_bot(); }
-    else if(b.l < 0 && b.u > 0) {   // TO CONFIRM: With the split on Z, this part becomes useless (as well as the test in else if)
+    else if(b.l < 0 && b.u > 0) {   // TO CONFIRM: never useful??
       l.meet(min(min<VT>(a.l, -a.u), min<VT>(a.l * b.u, (a.u + VT{1}) * b.l + VT{1})));
       u.meet(max(max<VT>(-a.l, a.u), max<VT>(a.l * b.l, (a.u + VT{1}) * b.u - VT{1})));
     }
@@ -625,11 +625,11 @@ CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 template<class VT>
 CUDA INLINE constexpr void zfdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
-  x.fdiv(y, z);
-  z.fdiv_den(x, y);
+  // x.fdiv(y, z);
+  // z.fdiv_den(x, y);
   y.fdiv_num(x, z);
-  z.neq_zero();
-  x.fdiv(y, z);
+  // z.neq_zero();
+  // x.fdiv(y, z);
 }
 
 // Must be used in cooperation with split on z.
@@ -641,13 +641,20 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
   using battery::min;
   using battery::max;
   z.neq_zero();
-  assert(z.ub() < 0 || z.lb() > 0);
+  // assert(z.ub() < 0 || z.lb() > 0);
   if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
   if(x.l.is_top() || x.u.is_top() || y.l.is_top() || y.u.is_top() || z.l.is_top() || z.u.is_top()) { return; }
 
   // DIV (x.fdiv(y, z);)
-  x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
-  x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  // When we split on `z`, this part of the code is useless.
+  // if(z.l < 0 && z.u > 0) {
+  //   if(!y.u.is_top()) { x.l.meet(min<VT>(y.l, -y.u)); }
+  //   if(!y.l.is_top()) { x.u.meet(max<VT>(-y.l, y.u)); }
+  // }
+  // else {
+    x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+    x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  // }
   if(x.is_bot()) { return; }
 
   // DEN (z.fdiv_den(x, y);)
@@ -706,15 +713,22 @@ CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT>& x, ZInterval<VT>& y, ZInte
     }
     if(z.is_bot()) { return; }
   }
-
+  z.neq_zero();
   // NUM (y.fdiv_num(x, z);)
   y.l.meet(min(min<VT>(x.l * z.l, x.l * z.u), min<VT>((x.u + VT{1}) * z.l + VT{1}, (x.u + VT{1}) * z.u + VT{1})));
   y.u.meet(max(max<VT>(x.l * z.l, x.l * z.u), max<VT>((x.u + VT{1}) * z.l - VT{1}, (x.u + VT{1}) * z.u - VT{1})));
   if(y.is_bot()) { return; }
 
   // DIV (x.fdiv(y, z);)
-  x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
-  x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  // When we split on `z`, this part of the code is useless.
+  // if(z.l < 0 && z.u > 0) {
+  //   if(!y.u.is_top()) { x.l.meet(min<VT>(y.l, -y.u)); }
+  //   if(!y.l.is_top()) { x.u.meet(max<VT>(-y.l, y.u)); }
+  // }
+  // else {
+    x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+    x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  // }
 }
 
 template<class VT>
