@@ -1,0 +1,12 @@
+# Rocq / Coq build artifacts
+*.vo
+*.vok
+*.vos
+*.glob
+.*.aux
+.lia.cache
+.nia.cache
+.coq-native/
+
+# rocq-mcp scratch files
+rocq_mcp_cache_*.v
