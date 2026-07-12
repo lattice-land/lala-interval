@@ -19,6 +19,12 @@ CUDA INLINE constexpr ZInterval<VT, Mem> join_nobot(ZInterval<VT, Mem> a, ZInter
 namespace tell {
 template<class VT>
 CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT,battery::local_memory>& x, ZInterval<VT,battery::local_memory>& y, ZInterval<VT,battery::local_memory>& z);
+
+template<class VT>
+CUDA INLINE constexpr void zfdiv_fast3(ZInterval<VT,battery::local_memory>& x, ZInterval<VT,battery::local_memory>& y, ZInterval<VT,battery::local_memory>& z);
+
+template<class VT>
+CUDA INLINE constexpr void zfdiv2(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
 }
 template <class VT, class Mem = battery::local_memory>
 class ZInterval {
@@ -35,6 +41,12 @@ public:
 
   template<class VT2>
   friend CUDA INLINE constexpr void tell::zfdiv_fast2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
+
+  template<class VT2>
+  friend CUDA INLINE constexpr void tell::zfdiv_fast3(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
+
+  template<class VT2>
+  friend CUDA INLINE constexpr void tell::zfdiv2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
 
 
   constexpr static const bool is_totally_ordered = false;
@@ -625,11 +637,11 @@ CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
 template<class VT>
 CUDA INLINE constexpr void zfdiv_fast(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   z.neq_zero();
-  // x.fdiv(y, z);
-  // z.fdiv_den(x, y);
+  x.fdiv(y, z);
+  z.fdiv_den(x, y);
   y.fdiv_num(x, z);
-  // z.neq_zero();
-  // x.fdiv(y, z);
+  z.neq_zero();
+  x.fdiv(y, z);
 }
 
 // Must be used in cooperation with split on z.
@@ -788,6 +800,80 @@ CUDA void splitjoin(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z, ZInter
 template<class VT>
 CUDA INLINE constexpr void zfdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   splitjoin(x, y, z, z, VT{0}, zfdiv_fast2<VT>);
+}
+
+template<class VT>
+CUDA INLINE constexpr void zfdiv2(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::fdiv;
+  using battery::cdiv;
+  using battery::min;
+  using battery::max;
+
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  if(x.l.is_top() || x.u.is_top() || y.l.is_top() || y.u.is_top() || z.l.is_top() || z.u.is_top()) { return; }
+
+  ZInterval<VT> x2(x), z2(z);
+
+  // CASE 1: z is positive.
+  z.lb().meet(VT{1});
+  if(!z.is_bot()) {
+    // DIV (x.fdiv(y, z);)
+    x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+    x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+    if(x.is_bot()) { goto negz; }
+
+    // A: x.l * z <= y.u
+    if(x.l > VT{0}) { z.u.meet(fdiv<VT>(y.u, x.l)); }
+    else if(x.l != VT{0}) { z.l.meet(cdiv<VT>(y.u, x.l)); }
+    else if(y.u < VT{0}) { z.meet_bot(); }
+    // B: (x.u + 1) * z >= y.l + 1
+    if(x.u > VT{-1}) { z.l.meet(cdiv<VT>(y.l + VT{1}, x.u + VT{1})); }
+    else if(x.u != VT{-1}) { z.u.meet(fdiv<VT>(y.l + VT{1}, x.u + VT{1})); }
+    else if(y.l >= VT{0}) { z.meet_bot(); }
+    if(z.is_bot()) { goto negz; }
+
+    // DIV (x.fdiv(y, z);)
+    x.l.meet(min(min(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), min(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+    x.u.meet(max(max(fdiv<VT>(y.l, z.l), fdiv<VT>(y.l, z.u)), max(fdiv<VT>(y.u, z.l), fdiv<VT>(y.u, z.u))));
+  }
+
+negz:
+  // CASE 2: z is negative.
+  z2.ub().meet(VT{-1});
+  if(!z2.is_bot()) {
+    // DIV (x.fdiv(y, z);)
+    x2.l.meet(min(min(fdiv<VT>(y.l, z2.l), fdiv<VT>(y.l, z2.u)), min(fdiv<VT>(y.u, z2.l), fdiv<VT>(y.u, z2.u))));
+    x2.u.meet(max(max(fdiv<VT>(y.l, z2.l), fdiv<VT>(y.l, z2.u)), max(fdiv<VT>(y.u, z2.l), fdiv<VT>(y.u, z2.u))));
+    if(x2.is_bot()) { goto join; }
+
+    // A: x2.l * z2 >= y.l
+    if(x2.l > VT{0}) { z2.l.meet(cdiv<VT>(y.l, x2.l)); }
+    else if(x2.l != VT{0}) { z2.u.meet(fdiv<VT>(y.l, x2.l)); }
+    else if(y.l > VT{0}) { z2.meet_bot(); }
+    // B: (x2.u + 1) * z2 <= y.u - 1
+    if(x2.u > VT{-1}) { z2.u.meet(fdiv<VT>(y.u - VT{1}, x2.u + VT{1})); }
+    else if(x2.u != VT{-1}) { z2.l.meet(cdiv<VT>(y.u - VT{1}, x2.u + VT{1})); }
+    else if(y.u <= VT{0}) { z2.meet_bot(); }
+    if(z2.is_bot()) { goto join; }
+
+    // DIV (x2.fdiv(y, z);)
+    x2.l.meet(min(min(fdiv<VT>(y.l, z2.l), fdiv<VT>(y.l, z2.u)), min(fdiv<VT>(y.u, z2.l), fdiv<VT>(y.u, z2.u))));
+    x2.u.meet(max(max(fdiv<VT>(y.l, z2.l), fdiv<VT>(y.l, z2.u)), max(fdiv<VT>(y.u, z2.l), fdiv<VT>(y.u, z2.u))));
+  }
+
+join:
+  if(x.is_bot() || z.is_bot()) {
+    x = x2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    z.join(z2);
+  }
+
+  // NUM (y.fdiv_num(x, z);)
+  y.l.meet(min(min<VT>(x.l * z.l, x.l * z.u), min<VT>((x.u + VT{1}) * z.l + VT{1}, (x.u + VT{1}) * z.u + VT{1})));
+  y.u.meet(max(max<VT>(x.l * z.l, x.l * z.u), max<VT>((x.u + VT{1}) * z.l - VT{1}, (x.u + VT{1}) * z.u - VT{1})));
 }
 
 template<class VT>
