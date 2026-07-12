@@ -1,0 +1,9 @@
+Captured via `Print Assumptions <name>.` after compilation (Coq 9 / Stdlib).
+
+fdiv_propagator_sound  : Closed under the global context
+branch_attain          : Closed under the global context
+y_attain               : Closed under the global context
+propagator_optimal     : Closed under the global context
+
+"Closed under the global context" = no admits, no Admitted, no injected axioms;
+the proofs depend only on fdiv.v definitions and the Coq standard library.
