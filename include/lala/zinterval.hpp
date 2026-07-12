@@ -652,6 +652,121 @@ CUDA INLINE constexpr VT isub(VT a, VT b) {
   return a - b;
 }
 
+/** Infinity-aware arithmetic on VT with the battery::limits sentinel encoding
+    (min = -oo, max = +oo).  Each operation returns the LIMIT value of its
+    finite counterpart, so the corner formulas of the propagator compute the
+    exact bound of their projection even on unbounded intervals. */
+
+// Saturating addition of a small finite shift (the +-1 of the band formulas).
+template<class VT>
+CUDA INLINE constexpr VT sadd(VT a, VT b) {
+  return (a == battery::limits<VT>::inf() || a == battery::limits<VT>::neg_inf()) ? a : a + b;
+}
+
+// Multiplication with the sign rule and 0 * oo = 0 (exact for interval hulls).
+template<class VT>
+CUDA INLINE constexpr VT imul(VT a, VT b) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(a == VT{0} || b == VT{0}) { return VT{0}; }
+  if(a == inf)  { return b > VT{0} ? inf : ninf; }
+  if(a == ninf) { return b > VT{0} ? ninf : inf; }
+  if(b == inf)  { return a > VT{0} ? inf : ninf; }
+  if(b == ninf) { return a > VT{0} ? ninf : inf; }
+  return a * b;
+}
+
+// floor(n/m) with limit semantics; precondition: m != 0.
+// For an infinite divisor the quotient is the eventual value of floor(n/z)
+// (0 when the signs agree, -1 otherwise) -- uniformly correct, including for
+// infinite n, in every min/max corner expression where it occurs.
+template<class VT>
+CUDA INLINE constexpr VT idiv_f(VT n, VT m) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(m == inf)  { return n < VT{0} ? VT{-1} : VT{0}; }
+  if(m == ninf) { return n > VT{0} ? VT{-1} : VT{0}; }
+  if(n == inf)  { return m > VT{0} ? inf : ninf; }
+  if(n == ninf) { return m > VT{0} ? ninf : inf; }
+  return battery::fdiv<VT>(n, m);
+}
+
+// ceil(n/m) with limit semantics; precondition: m != 0.
+template<class VT>
+CUDA INLINE constexpr VT idiv_c(VT n, VT m) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(m == inf)  { return n > VT{0} ? VT{1} : VT{0}; }
+  if(m == ninf) { return n < VT{0} ? VT{1} : VT{0}; }
+  if(n == inf)  { return m > VT{0} ? inf : ninf; }
+  if(n == ninf) { return m > VT{0} ? ninf : inf; }
+  return battery::cdiv<VT>(n, m);
+}
+
+template<class VT>
+CUDA INLINE constexpr VT ineg(VT a) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  return a == inf ? ninf : (a == ninf ? inf : static_cast<VT>(-a));
+}
+
+// x = y * z with PRECISE infinite-bound reasoning. Constant time, no
+// recursion: one 4-corner product hull per direction, division-back with
+// idiv_c/idiv_f corner hulls when the divisor is sign-definite, and the
+// absolute-value bound when it straddles zero (|b| >= 1 on solutions).
+template<class VT>
+CUDA INLINE constexpr void zmul3(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::min;
+  using battery::max;
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+
+  // MUL (x <- x meet y*z)
+  x.lb().meet(min(min(imul<VT>(y.lb(), z.lb()), imul<VT>(y.lb(), z.ub())),
+                  min(imul<VT>(y.ub(), z.lb()), imul<VT>(y.ub(), z.ub()))));
+  x.ub().meet(max(max(imul<VT>(y.lb(), z.lb()), imul<VT>(y.lb(), z.ub())),
+                  max(imul<VT>(y.ub(), z.lb()), imul<VT>(y.ub(), z.ub()))));
+  if(x.is_bot()) { return; }
+
+  const bool xnz = (x.lb() > VT{0} || x.ub() < VT{0});
+  // z.mul_back_zero(x)
+  if(xnz) { z.neq_zero(); }
+  if(z.is_bot()) { return; }
+  // y.mul_back_nz(x, z): on solutions y = x / z exactly, so the cdiv/fdiv
+  // corner hull is sound; straddling z with 0 notin x gives |y| <= |x|.
+  if(z.lb() > VT{0} || z.ub() < VT{0}) {
+    y.lb().meet(min(min(idiv_c<VT>(x.lb(), z.lb()), idiv_c<VT>(x.lb(), z.ub())),
+                    min(idiv_c<VT>(x.ub(), z.lb()), idiv_c<VT>(x.ub(), z.ub()))));
+    y.ub().meet(max(max(idiv_f<VT>(x.lb(), z.lb()), idiv_f<VT>(x.lb(), z.ub())),
+                    max(idiv_f<VT>(x.ub(), z.lb()), idiv_f<VT>(x.ub(), z.ub()))));
+  }
+  else if(xnz) {
+    y.lb().meet(min<VT>(x.lb(), ineg<VT>(x.ub())));
+    y.ub().meet(max<VT>(ineg<VT>(x.lb()), x.ub()));
+  }
+  if(y.is_bot()) { return; }
+  // y.mul_back_zero(x)
+  if(xnz) { y.neq_zero(); }
+  if(y.is_bot()) { return; }
+  // z.mul_back_nz(x, y)
+  if(y.lb() > VT{0} || y.ub() < VT{0}) {
+    z.lb().meet(min(min(idiv_c<VT>(x.lb(), y.lb()), idiv_c<VT>(x.lb(), y.ub())),
+                    min(idiv_c<VT>(x.ub(), y.lb()), idiv_c<VT>(x.ub(), y.ub()))));
+    z.ub().meet(max(max(idiv_f<VT>(x.lb(), y.lb()), idiv_f<VT>(x.lb(), y.ub())),
+                    max(idiv_f<VT>(x.ub(), y.lb()), idiv_f<VT>(x.ub(), y.ub()))));
+  }
+  else if(xnz) {
+    z.lb().meet(min<VT>(x.lb(), ineg<VT>(x.ub())));
+    z.ub().meet(max<VT>(ineg<VT>(x.lb()), x.ub()));
+  }
+  if(z.is_bot()) { return; }
+
+  // MUL (x <- x meet y*z)
+  x.lb().meet(min(min(imul<VT>(y.lb(), z.lb()), imul<VT>(y.lb(), z.ub())),
+                  min(imul<VT>(y.ub(), z.lb()), imul<VT>(y.ub(), z.ub()))));
+  x.ub().meet(max(max(imul<VT>(y.lb(), z.lb()), imul<VT>(y.lb(), z.ub())),
+                  max(imul<VT>(y.ub(), z.lb()), imul<VT>(y.ub(), z.ub()))));
+}
+
 // x = y + z with PRECISE infinite-bound reasoning: hull meets always run;
 // an infinite corner yields an infinite candidate whose meet is a no-op.
 template<class VT>
@@ -920,57 +1035,6 @@ join:
   // NUM (y.fdiv_num(x, z);)
   y.l.meet(min(min<VT>(x.l * z.l, x.l * z.u), min<VT>((x.u + VT{1}) * z.l + VT{1}, (x.u + VT{1}) * z.u + VT{1})));
   y.u.meet(max(max<VT>(x.l * z.l, x.l * z.u), max<VT>((x.u + VT{1}) * z.l - VT{1}, (x.u + VT{1}) * z.u - VT{1})));
-}
-
-/** Infinity-aware arithmetic on VT with the battery::limits sentinel encoding
-    (min = -oo, max = +oo).  Each operation returns the LIMIT value of its
-    finite counterpart, so the corner formulas of the propagator compute the
-    exact bound of their projection even on unbounded intervals. */
-
-// Saturating addition of a small finite shift (the +-1 of the band formulas).
-template<class VT>
-CUDA INLINE constexpr VT sadd(VT a, VT b) {
-  return (a == battery::limits<VT>::inf() || a == battery::limits<VT>::neg_inf()) ? a : a + b;
-}
-
-// Multiplication with the sign rule and 0 * oo = 0 (exact for interval hulls).
-template<class VT>
-CUDA INLINE constexpr VT imul(VT a, VT b) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(a == VT{0} || b == VT{0}) { return VT{0}; }
-  if(a == inf)  { return b > VT{0} ? inf : ninf; }
-  if(a == ninf) { return b > VT{0} ? ninf : inf; }
-  if(b == inf)  { return a > VT{0} ? inf : ninf; }
-  if(b == ninf) { return a > VT{0} ? ninf : inf; }
-  return a * b;
-}
-
-// floor(n/m) with limit semantics; precondition: m != 0.
-// For an infinite divisor the quotient is the eventual value of floor(n/z)
-// (0 when the signs agree, -1 otherwise) -- uniformly correct, including for
-// infinite n, in every min/max corner expression where it occurs.
-template<class VT>
-CUDA INLINE constexpr VT idiv_f(VT n, VT m) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(m == inf)  { return n < VT{0} ? VT{-1} : VT{0}; }
-  if(m == ninf) { return n > VT{0} ? VT{-1} : VT{0}; }
-  if(n == inf)  { return m > VT{0} ? inf : ninf; }
-  if(n == ninf) { return m > VT{0} ? ninf : inf; }
-  return battery::fdiv<VT>(n, m);
-}
-
-// ceil(n/m) with limit semantics; precondition: m != 0.
-template<class VT>
-CUDA INLINE constexpr VT idiv_c(VT n, VT m) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(m == inf)  { return n > VT{0} ? VT{1} : VT{0}; }
-  if(m == ninf) { return n < VT{0} ? VT{1} : VT{0}; }
-  if(n == inf)  { return m > VT{0} ? inf : ninf; }
-  if(n == ninf) { return m > VT{0} ? ninf : inf; }
-  return battery::cdiv<VT>(n, m);
 }
 
 // zfdiv2 with PRECISE infinite-bound reasoning: the is_top bail-out is gone;
