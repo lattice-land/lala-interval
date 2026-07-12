@@ -2260,3 +2260,96 @@ Proof.
     intros vx vy vz Hin Hsol.
     apply fdiv_soundness; [ apply fdiv_soundness; [ exact Hin | exact Hsol ] | exact Hsol ].
 Qed.
+
+(* ================================================================= *)
+(*  Completeness on singletons: when the three intervals are          *)
+(*  assignments, any non-solution is rejected (the output is empty).  *)
+(*  Together with soundness, reductivity and monotonicity this        *)
+(*  completes the four defining properties of a propagator.           *)
+(* ================================================================= *)
+
+(* A non-empty branch output keeps the branch divisor interval non-empty. *)
+Lemma fdivxz_pos_ne_z : forall w,
+  ne_store (fdivxz_pos w) = true -> lo (sz w) <= hi (sz w).
+Proof.
+  intros w Hne. unfold ne_store in Hne.
+  apply Bool.andb_true_iff in Hne as [_ Hnez].
+  unfold nonemptyb in Hnez. apply Z.leb_le in Hnez.
+  unfold fdivxz_pos in Hnez; cbv zeta in Hnez; cbn [sz] in Hnez.
+  unfold inter in Hnez; cbn [lo hi] in Hnez. lia.
+Qed.
+
+(* On a singleton store with a singleton divisor, a non-empty branch output
+   pins the assignment to the exact quotient: the first quotient window
+   [Xlo,Xhi] collapses to the single corner vy/vz. *)
+Lemma fdivxz_pos_singleton : forall w vx vy vz,
+  sx w = Itv vx vx -> sy w = Itv vy vy ->
+  lo (sz w) = vz -> hi (sz w) = vz ->
+  ne_store (fdivxz_pos w) = true ->
+  vx = vy / vz.
+Proof.
+  intros w vx vy vz Hx Hy Hzl Hzu Hne.
+  unfold ne_store in Hne.
+  apply Bool.andb_true_iff in Hne as [Hne _].
+  apply Bool.andb_true_iff in Hne as [Hnex _].
+  unfold nonemptyb in Hnex. apply Z.leb_le in Hnex.
+  unfold fdivxz_pos in Hnex; cbv zeta in Hnex; cbn [sx] in Hnex.
+  rewrite Hx, Hy in Hnex. cbn [lo hi] in Hnex.
+  rewrite Hzl, Hzu in Hnex.
+  unfold inter, Xlo, Xhi in Hnex; cbn [lo hi] in Hnex.
+  lia.
+Qed.
+
+(* refine_y only shrinks the y-component: it preserves non-emptiness upward. *)
+Lemma ne_refine_y : forall u, ne_store (refine_y u) = true -> ne_store u = true.
+Proof.
+  intros u H. unfold refine_y, ne_store, nonemptyb in *; cbn [sx sy sz] in H.
+  unfold inter in H; cbn [lo hi] in H.
+  apply Bool.andb_true_iff in H as [H Hz].
+  apply Bool.andb_true_iff in H as [Hx Hy].
+  apply Z.leb_le in Hx, Hy, Hz.
+  apply Bool.andb_true_iff; split; [apply Bool.andb_true_iff; split|]; apply Z.leb_le; lia.
+Qed.
+
+Theorem fdiv_singleton_complete : forall s vx vy vz,
+  sx s = Itv vx vx -> sy s = Itv vy vy -> sz s = Itv vz vz ->
+  ne_store (propagator s) = true ->
+  sol vx vy vz.
+Proof.
+  intros s vx vy vz Hx Hy Hz Hne.
+  destruct s as [ix iy izv]. cbn [sx sy sz] in Hx, Hy, Hz. subst ix iy izv.
+  set (t := St (Itv vx vx) (Itv vy vy) (Itv vz vz)) in *.
+  (* each sign-definite branch, if non-empty, forces the exact solution *)
+  assert (Bpos : ne_store (fdivxz_pos (restrict_z_pos t)) = true -> sol vx vy vz).
+  { intro HB.
+    pose proof (fdivxz_pos_ne_z _ HB) as Hzz.
+    unfold restrict_z_pos, t in Hzz; cbn [sx sy sz] in Hzz;
+      unfold inter in Hzz; cbn [lo hi] in Hzz.
+    assert (Hvz : 1 <= vz) by lia.
+    assert (Hq : vx = vy / vz).
+    { apply (fdivxz_pos_singleton (restrict_z_pos t) vx vy vz); try exact HB;
+        unfold restrict_z_pos, t; cbn [sx sy sz]; try reflexivity;
+        unfold inter; cbn [lo hi]; lia. }
+    split; [lia | exact Hq]. }
+  assert (Bneg : ne_store (fdivxz_pos (restrict_z_neg t)) = true -> sol vx vy vz).
+  { intro HB.
+    pose proof (fdivxz_pos_ne_z _ HB) as Hzz.
+    unfold restrict_z_neg, t in Hzz; cbn [sx sy sz] in Hzz;
+      unfold inter in Hzz; cbn [lo hi] in Hzz.
+    assert (Hvz : vz <= -1) by lia.
+    assert (Hq : vx = vy / vz).
+    { apply (fdivxz_pos_singleton (restrict_z_neg t) vx vy vz); try exact HB;
+        unfold restrict_z_neg, t; cbn [sx sy sz]; try reflexivity;
+        unfold inter; cbn [lo hi]; lia. }
+    split; [lia | exact Hq]. }
+  (* a non-empty propagator output requires a non-empty branch *)
+  destruct (ne_store (fdivxz_pos (restrict_z_neg t))) eqn:EN; [exact (Bneg eq_refl)|].
+  destruct (ne_store (fdivxz_pos (restrict_z_pos t))) eqn:EP; [exact (Bpos eq_refl)|].
+  exfalso.
+  apply ne_refine_y in Hne.
+  unfold sqcupbot in Hne.
+  rewrite <- (fdivxz_neg_eq_pos (restrict_z_neg t)) in EN.
+  rewrite EN in Hne.
+  cbv iota in Hne.
+  congruence.
+Qed.
