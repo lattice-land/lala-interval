@@ -25,6 +25,9 @@ CUDA INLINE constexpr void zfdiv_fast3(ZInterval<VT,battery::local_memory>& x, Z
 
 template<class VT>
 CUDA INLINE constexpr void zfdiv2(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
+
+template<class VT>
+CUDA INLINE constexpr void zfdiv3(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
 }
 template <class VT, class Mem = battery::local_memory>
 class ZInterval {
@@ -47,6 +50,9 @@ public:
 
   template<class VT2>
   friend CUDA INLINE constexpr void tell::zfdiv2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
+
+  template<class VT2>
+  friend CUDA INLINE constexpr void tell::zfdiv3(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
 
 
   constexpr static const bool is_totally_ordered = false;
@@ -874,6 +880,137 @@ join:
   // NUM (y.fdiv_num(x, z);)
   y.l.meet(min(min<VT>(x.l * z.l, x.l * z.u), min<VT>((x.u + VT{1}) * z.l + VT{1}, (x.u + VT{1}) * z.u + VT{1})));
   y.u.meet(max(max<VT>(x.l * z.l, x.l * z.u), max<VT>((x.u + VT{1}) * z.l - VT{1}, (x.u + VT{1}) * z.u - VT{1})));
+}
+
+/** Infinity-aware arithmetic on VT with the battery::limits sentinel encoding
+    (min = -oo, max = +oo).  Each operation returns the LIMIT value of its
+    finite counterpart, so the corner formulas of the propagator compute the
+    exact bound of their projection even on unbounded intervals. */
+
+// Saturating addition of a small finite shift (the +-1 of the band formulas).
+template<class VT>
+CUDA INLINE constexpr VT sadd(VT a, VT b) {
+  return (a == battery::limits<VT>::inf() || a == battery::limits<VT>::neg_inf()) ? a : a + b;
+}
+
+// Multiplication with the sign rule and 0 * oo = 0 (exact for interval hulls).
+template<class VT>
+CUDA INLINE constexpr VT imul(VT a, VT b) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(a == VT{0} || b == VT{0}) { return VT{0}; }
+  if(a == inf)  { return b > VT{0} ? inf : ninf; }
+  if(a == ninf) { return b > VT{0} ? ninf : inf; }
+  if(b == inf)  { return a > VT{0} ? inf : ninf; }
+  if(b == ninf) { return a > VT{0} ? ninf : inf; }
+  return a * b;
+}
+
+// floor(n/m) with limit semantics; precondition: m != 0.
+// For an infinite divisor the quotient is the eventual value of floor(n/z)
+// (0 when the signs agree, -1 otherwise) -- uniformly correct, including for
+// infinite n, in every min/max corner expression where it occurs.
+template<class VT>
+CUDA INLINE constexpr VT idiv_f(VT n, VT m) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(m == inf)  { return n < VT{0} ? VT{-1} : VT{0}; }
+  if(m == ninf) { return n > VT{0} ? VT{-1} : VT{0}; }
+  if(n == inf)  { return m > VT{0} ? inf : ninf; }
+  if(n == ninf) { return m > VT{0} ? ninf : inf; }
+  return battery::fdiv<VT>(n, m);
+}
+
+// ceil(n/m) with limit semantics; precondition: m != 0.
+template<class VT>
+CUDA INLINE constexpr VT idiv_c(VT n, VT m) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(m == inf)  { return n > VT{0} ? VT{1} : VT{0}; }
+  if(m == ninf) { return n < VT{0} ? VT{1} : VT{0}; }
+  if(n == inf)  { return m > VT{0} ? inf : ninf; }
+  if(n == ninf) { return m > VT{0} ? ninf : inf; }
+  return battery::cdiv<VT>(n, m);
+}
+
+// zfdiv2 with PRECISE infinite-bound reasoning: the is_top bail-out is gone;
+// every corner operation goes through the infinity-aware helpers, so the
+// propagator refines exactly as much as the finite-bound one would in the
+// limit.  Structure identical to zfdiv2 (band DEN, per-sign branches, join,
+// NUM hull).
+template<class VT>
+CUDA INLINE constexpr void zfdiv3(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::min;
+  using battery::max;
+
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+
+  ZInterval<VT> x2(x), z2(z);
+
+  // CASE 1: z is positive.
+  z.lb().meet(VT{1});
+  if(!z.is_bot()) {
+    // DIV (x.fdiv(y, z);)
+    x.l.meet(min(min(idiv_f<VT>(y.l, z.l), idiv_f<VT>(y.l, z.u)), min(idiv_f<VT>(y.u, z.l), idiv_f<VT>(y.u, z.u))));
+    x.u.meet(max(max(idiv_f<VT>(y.l, z.l), idiv_f<VT>(y.l, z.u)), max(idiv_f<VT>(y.u, z.l), idiv_f<VT>(y.u, z.u))));
+    if(x.is_bot()) { goto negz; }
+
+    // A: x.l * z <= y.u
+    if(x.l > VT{0}) { z.u.meet(idiv_f<VT>(y.u, x.l)); }
+    else if(x.l != VT{0}) { z.l.meet(idiv_c<VT>(y.u, x.l)); }
+    else if(y.u < VT{0}) { z.meet_bot(); }
+    // B: (x.u + 1) * z >= y.l + 1
+    if(x.u > VT{-1}) { z.l.meet(idiv_c<VT>(sadd<VT>(y.l, VT{1}), sadd<VT>(x.u, VT{1}))); }
+    else if(x.u != VT{-1}) { z.u.meet(idiv_f<VT>(sadd<VT>(y.l, VT{1}), sadd<VT>(x.u, VT{1}))); }
+    else if(y.l >= VT{0}) { z.meet_bot(); }
+    if(z.is_bot()) { goto negz; }
+
+    // DIV (x.fdiv(y, z);)
+    x.l.meet(min(min(idiv_f<VT>(y.l, z.l), idiv_f<VT>(y.l, z.u)), min(idiv_f<VT>(y.u, z.l), idiv_f<VT>(y.u, z.u))));
+    x.u.meet(max(max(idiv_f<VT>(y.l, z.l), idiv_f<VT>(y.l, z.u)), max(idiv_f<VT>(y.u, z.l), idiv_f<VT>(y.u, z.u))));
+  }
+
+negz:
+  // CASE 2: z is negative.
+  z2.ub().meet(VT{-1});
+  if(!z2.is_bot()) {
+    // DIV (x.fdiv(y, z);)
+    x2.l.meet(min(min(idiv_f<VT>(y.l, z2.l), idiv_f<VT>(y.l, z2.u)), min(idiv_f<VT>(y.u, z2.l), idiv_f<VT>(y.u, z2.u))));
+    x2.u.meet(max(max(idiv_f<VT>(y.l, z2.l), idiv_f<VT>(y.l, z2.u)), max(idiv_f<VT>(y.u, z2.l), idiv_f<VT>(y.u, z2.u))));
+    if(x2.is_bot()) { goto join; }
+
+    // A: x2.l * z2 >= y.l
+    if(x2.l > VT{0}) { z2.l.meet(idiv_c<VT>(y.l, x2.l)); }
+    else if(x2.l != VT{0}) { z2.u.meet(idiv_f<VT>(y.l, x2.l)); }
+    else if(y.l > VT{0}) { z2.meet_bot(); }
+    // B: (x2.u + 1) * z2 <= y.u - 1
+    if(x2.u > VT{-1}) { z2.u.meet(idiv_f<VT>(sadd<VT>(y.u, VT{-1}), sadd<VT>(x2.u, VT{1}))); }
+    else if(x2.u != VT{-1}) { z2.l.meet(idiv_c<VT>(sadd<VT>(y.u, VT{-1}), sadd<VT>(x2.u, VT{1}))); }
+    else if(y.u <= VT{0}) { z2.meet_bot(); }
+    if(z2.is_bot()) { goto join; }
+
+    // DIV (x2.fdiv(y, z);)
+    x2.l.meet(min(min(idiv_f<VT>(y.l, z2.l), idiv_f<VT>(y.l, z2.u)), min(idiv_f<VT>(y.u, z2.l), idiv_f<VT>(y.u, z2.u))));
+    x2.u.meet(max(max(idiv_f<VT>(y.l, z2.l), idiv_f<VT>(y.l, z2.u)), max(idiv_f<VT>(y.u, z2.l), idiv_f<VT>(y.u, z2.u))));
+  }
+
+join:
+  if(x.is_bot() || z.is_bot()) {
+    x = x2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    z.join(z2);
+  }
+
+  // NUM (y.fdiv_num(x, z);)
+  y.l.meet(min(min<VT>(imul<VT>(x.l, z.l), imul<VT>(x.l, z.u)),
+               min<VT>(sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.l), VT{1}),
+                       sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.u), VT{1}))));
+  y.u.meet(max(max<VT>(imul<VT>(x.l, z.l), imul<VT>(x.l, z.u)),
+               max<VT>(sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.l), VT{-1}),
+                       sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.u), VT{-1}))));
 }
 
 template<class VT>
