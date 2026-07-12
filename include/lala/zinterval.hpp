@@ -630,6 +630,46 @@ CUDA INLINE constexpr void zsub(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   zadd(y, x, z);
 }
 
+/** Infinity-aware addition/subtraction (battery::limits sentinel encoding).
+    Precondition of use: the two operands never combine opposite infinities
+    (guaranteed by the hull corners below: lower corners are never +oo and
+    upper corners never -oo on non-empty intervals). */
+template<class VT>
+CUDA INLINE constexpr VT iadd(VT a, VT b) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(a == inf || a == ninf) { return a; }
+  if(b == inf || b == ninf) { return b; }
+  return a + b;
+}
+template<class VT>
+CUDA INLINE constexpr VT isub(VT a, VT b) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(a == inf || a == ninf) { return a; }
+  if(b == inf) { return ninf; }
+  if(b == ninf) { return inf; }
+  return a - b;
+}
+
+// x = y + z with PRECISE infinite-bound reasoning: hull meets always run;
+// an infinite corner yields an infinite candidate whose meet is a no-op.
+template<class VT>
+CUDA INLINE constexpr void zadd3(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  // x <- x meet (y + z)
+  x.lb().meet(iadd<VT>(y.lb(), z.lb()));
+  x.ub().meet(iadd<VT>(y.ub(), z.ub()));
+  if(x.is_bot()) { return; }
+  // y <- y meet (x - z)
+  y.lb().meet(isub<VT>(x.lb(), z.ub()));
+  y.ub().meet(isub<VT>(x.ub(), z.lb()));
+  if(y.is_bot()) { return; }
+  // z <- z meet (x - y)
+  z.lb().meet(isub<VT>(x.lb(), y.ub()));
+  z.ub().meet(isub<VT>(x.ub(), y.lb()));
+}
+
 template<class VT>
 CUDA INLINE constexpr void zmul(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   x.mul(y, z);
