@@ -253,8 +253,96 @@ Theorem fdiv3_soundness : forall s vx vy vz,
   in_store3 (propagator3 s) vx vy vz.
 Proof. Admitted.
 
+(* ------------------------------------------------------------------ *)
+(** ** Helper lemmas for reductivity                                    *)
+(* ------------------------------------------------------------------ *)
+
+Lemma zle_refl : forall a, zle a a.
+Proof. intros [v| |]; cbn; try exact I; lia. Qed.
+
+Lemma zle_trans : forall a b c, zle a b -> zle b c -> zle a c.
+Proof. intros [x| |] [y| |] [z| |]; cbn; try tauto; lia. Qed.
+
+Lemma zle_zmax_l : forall a b, zle a (zmax a b).
+Proof. intros [x| |] [y| |]; cbn; try exact I; lia. Qed.
+
+Lemma zmin_zle_l : forall a b, zle (zmin a b) a.
+Proof. intros [x| |] [y| |]; cbn; try exact I; lia. Qed.
+
+Lemma zle_zmin_glb : forall a b c, zle c a -> zle c b -> zle c (zmin a b).
+Proof. intros [x| |] [y| |] [z| |]; cbn; try tauto; lia. Qed.
+
+Lemma zmax_lub : forall a b c, zle a c -> zle b c -> zle (zmax a b) c.
+Proof. intros [x| |] [y| |] [z| |]; cbn; try tauto; lia. Qed.
+
+Lemma ile3_refl : forall i, ile3 i i.
+Proof. intro i; split; apply zle_refl. Qed.
+
+Lemma ile3_trans : forall i j k, ile3 i j -> ile3 j k -> ile3 i k.
+Proof.
+  intros i j k [Hl1 Hh1] [Hl2 Hh2]; split; eapply zle_trans; eassumption.
+Qed.
+
+Lemma inter3_ile3_l : forall i j, ile3 (inter3 i j) i.
+Proof.
+  intros i j; unfold ile3, inter3; cbn [lo3 hi3].
+  split; [apply zle_zmax_l | apply zmin_zle_l].
+Qed.
+
+Lemma ijoin3_ile3 : forall i j k, ile3 i k -> ile3 j k -> ile3 (ijoin3 i j) k.
+Proof.
+  intros i j k [Hli Hhi] [Hlj Hhj]; unfold ile3, ijoin3; cbn [lo3 hi3].
+  split; [apply zle_zmin_glb | apply zmax_lub]; assumption.
+Qed.
+
+Lemma sle3_trans : forall a b c, sle3 a b -> sle3 b c -> sle3 a c.
+Proof.
+  unfold sle3; intros a b c [Hx [Hy Hz]] [Hx' [Hy' Hz']];
+  split; [|split]; eapply ile3_trans; eassumption.
+Qed.
+
+Lemma restrict_z_pos3_ile : forall t, sle3 (restrict_z_pos3 t) t.
+Proof.
+  intro t; unfold restrict_z_pos3, sle3; cbn [sx3 sy3 sz3].
+  split; [apply ile3_refl | split; [apply ile3_refl | apply inter3_ile3_l]].
+Qed.
+
+Lemma restrict_z_neg3_ile : forall t, sle3 (restrict_z_neg3 t) t.
+Proof.
+  intro t; unfold restrict_z_neg3, sle3; cbn [sx3 sy3 sz3].
+  split; [apply ile3_refl | split; [apply ile3_refl | apply inter3_ile3_l]].
+Qed.
+
+Lemma fdivxz3_ile : forall w, sle3 (fdivxz3 w) w.
+Proof.
+  intro w. unfold fdivxz3; cbv zeta; unfold sle3; cbn [sx3 sy3 sz3].
+  split; [ eapply ile3_trans; [apply inter3_ile3_l | apply inter3_ile3_l]
+         | split; [apply ile3_refl | apply inter3_ile3_l] ].
+Qed.
+
+Lemma refine_y3_ile : forall w, sle3 (refine_y3 w) w.
+Proof.
+  intro w; unfold refine_y3; cbv zeta; unfold sle3; cbn [sx3 sy3 sz3].
+  split; [apply ile3_refl | split; [apply inter3_ile3_l | apply ile3_refl]].
+Qed.
+
+Lemma sqcupbot3_ile : forall a b t, sle3 a t -> sle3 b t -> sle3 (sqcupbot3 a b) t.
+Proof.
+  intros a b t Ha Hb. unfold sqcupbot3.
+  destruct (ne_store3 a), (ne_store3 b); cbn iota; try assumption.
+  unfold sjoin3, sle3 in *; cbn [sx3 sy3 sz3].
+  destruct Ha as [Hax [Hay Haz]]; destruct Hb as [Hbx [Hby Hbz]].
+  split; [|split]; apply ijoin3_ile3; assumption.
+Qed.
+
 Theorem fdiv3_reductive : forall s, sle3 (propagator3 s) s.
-Proof. Admitted.
+Proof.
+  intro s. unfold propagator3.
+  eapply sle3_trans; [apply refine_y3_ile|].
+  apply sqcupbot3_ile.
+  - eapply sle3_trans; [apply fdivxz3_ile | apply restrict_z_neg3_ile].
+  - eapply sle3_trans; [apply fdivxz3_ile | apply restrict_z_pos3_ile].
+Qed.
 
 (* Monotonicity holds up to bottom: with non-normalized empty intervals, an
    empty output (identified with bot in the lattice) is below everything, so
@@ -267,10 +355,93 @@ Theorem fdiv3_monotone : forall s t,
   sle3 (propagator3 s) (propagator3 t).
 Proof. Admitted.
 
+Lemma ne_inter3 : forall i j, nonempty3b (inter3 i j) = true -> nonempty3b i = true.
+Proof.
+  intros [[a| |] [b| |]] [[c| |] [d| |]]; cbn; intros H; try reflexivity; try discriminate;
+    apply Z.leb_le; apply Z.leb_le in H; lia.
+Qed.
+
+(* A non-empty branch output keeps the branch divisor interval non-empty. *)
+Lemma fdivxz3_ne_z : forall w,
+  ne_store3 (fdivxz3 w) = true -> nonempty3b (sz3 w) = true.
+Proof.
+  intros w Hne. unfold ne_store3 in Hne.
+  apply Bool.andb_true_iff in Hne as [_ Hnez].
+  unfold fdivxz3 in Hnez; cbv zeta in Hnez; cbn [sz3] in Hnez.
+  exact (ne_inter3 _ _ Hnez).
+Qed.
+
+(* On a singleton store with a singleton divisor, a non-empty branch output
+   pins the assignment to the exact quotient: the first quotient window
+   collapses to the single corner vy/vz. *)
+Lemma fdivxz3_singleton : forall w vx vy vz,
+  sx3 w = Itv3 (Fin vx) (Fin vx) -> sy3 w = Itv3 (Fin vy) (Fin vy) ->
+  lo3 (sz3 w) = Fin vz -> hi3 (sz3 w) = Fin vz ->
+  ne_store3 (fdivxz3 w) = true ->
+  vx = vy / vz.
+Proof.
+  intros w vx vy vz Hx Hy Hzl Hzu Hne.
+  unfold ne_store3 in Hne.
+  apply Bool.andb_true_iff in Hne as [Hne _].
+  apply Bool.andb_true_iff in Hne as [Hnex _].
+  unfold fdivxz3 in Hnex; cbv zeta in Hnex; cbn [sx3] in Hnex.
+  apply ne_inter3 in Hnex.
+  rewrite Hx, Hy in Hnex.
+  unfold div_hull3 in Hnex; cbn [lo3 hi3] in Hnex.
+  rewrite Hzl, Hzu in Hnex.
+  cbn in Hnex. apply Z.leb_le in Hnex. lia.
+Qed.
+
+(* refine_y3 only shrinks the y-component: it preserves non-emptiness upward. *)
+Lemma ne_refine_y3 : forall u, ne_store3 (refine_y3 u) = true -> ne_store3 u = true.
+Proof.
+  intros u H. unfold refine_y3 in H; cbv zeta in H.
+  unfold ne_store3 in *; cbn [sx3 sy3 sz3] in H.
+  apply Bool.andb_true_iff in H as [H Hz].
+  apply Bool.andb_true_iff in H as [Hx Hy].
+  apply ne_inter3 in Hy.
+  rewrite Hx, Hy, Hz; reflexivity.
+Qed.
+
 Theorem fdiv3_singleton_complete : forall s vx vy vz,
   sx3 s = Itv3 (Fin vx) (Fin vx) ->
   sy3 s = Itv3 (Fin vy) (Fin vy) ->
   sz3 s = Itv3 (Fin vz) (Fin vz) ->
   ne_store3 (propagator3 s) = true ->
   fdiv2.sol vx vy vz.
-Proof. Admitted.
+Proof.
+  intros s vx vy vz Hx Hy Hz Hne.
+  destruct s as [ix iy izv]; cbn [sx3 sy3 sz3] in Hx, Hy, Hz; subst ix iy izv.
+  set (t := St3 (Itv3 (Fin vx) (Fin vx)) (Itv3 (Fin vy) (Fin vy)) (Itv3 (Fin vz) (Fin vz))) in *.
+  (* each sign-definite branch, if non-empty, forces the exact solution *)
+  assert (Bpos : ne_store3 (fdivxz3 (restrict_z_pos3 t)) = true -> fdiv2.sol vx vy vz).
+  { intro HB.
+    pose proof (fdivxz3_ne_z _ HB) as Hzz.
+    unfold restrict_z_pos3, t in Hzz; cbn in Hzz.
+    apply Z.leb_le in Hzz.
+    assert (Hvz : 1 <= vz) by lia.
+    assert (Hq : vx = vy / vz).
+    { apply (fdivxz3_singleton (restrict_z_pos3 t) vx vy vz); try exact HB;
+        unfold restrict_z_pos3, t; cbn; try reflexivity; f_equal; lia. }
+    split; [lia | exact Hq]. }
+  assert (Bneg : ne_store3 (fdivxz3 (restrict_z_neg3 t)) = true -> fdiv2.sol vx vy vz).
+  { intro HB.
+    pose proof (fdivxz3_ne_z _ HB) as Hzz.
+    unfold restrict_z_neg3, t in Hzz; cbn in Hzz.
+    apply Z.leb_le in Hzz.
+    assert (Hvz : vz <= -1) by lia.
+    assert (Hq : vx = vy / vz).
+    { apply (fdivxz3_singleton (restrict_z_neg3 t) vx vy vz); try exact HB;
+        unfold restrict_z_neg3, t; cbn; try reflexivity; f_equal; lia. }
+    split; [lia | exact Hq]. }
+  (* a non-empty propagator output requires a non-empty branch *)
+  destruct (ne_store3 (fdivxz3 (restrict_z_neg3 t))) eqn:EN; [exact (Bneg eq_refl)|].
+  destruct (ne_store3 (fdivxz3 (restrict_z_pos3 t))) eqn:EP; [exact (Bpos eq_refl)|].
+  exfalso.
+  unfold propagator3 in Hne.
+  apply ne_refine_y3 in Hne.
+  unfold sqcupbot3 in Hne.
+  rewrite EN in Hne.
+  cbv iota in Hne.
+  congruence.
+Qed.
