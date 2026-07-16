@@ -703,6 +703,17 @@ CUDA INLINE constexpr VT idiv_c(VT n, VT m) {
   return battery::cdiv<VT>(n, m);
 }
 
+// trunc(n/m) with limit semantics; precondition: m != 0.
+template<class VT>
+CUDA INLINE constexpr VT idiv_t(VT n, VT m) {
+  const VT inf = battery::limits<VT>::inf();
+  const VT ninf = battery::limits<VT>::neg_inf();
+  if(m == inf || m == ninf) { return VT{0}; }
+  if(n == inf)  { return m > VT{0} ? inf : ninf; }
+  if(n == ninf) { return m > VT{0} ? ninf : inf; }
+  return battery::tdiv<VT>(n, m);
+}
+
 template<class VT>
 CUDA INLINE constexpr VT ineg(VT a) {
   const VT inf = battery::limits<VT>::inf();
@@ -1248,6 +1259,223 @@ CUDA INLINE constexpr bool zrleq(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<V
 }
 
 } // namespace ask
+
+namespace tell {
+
+/** Propagators x = y / z (z != 0) for the four integer division roundings,
+    with PRECISE infinite-bound reasoning.  One-pass slice decomposition:
+    z is split into its positive slice ([1, +oo]) and negative slice
+    ([-oo, -1]).  Within a slice, `div(y, z) in [x.lb, x.ub]` is equivalent
+    to `y in [ymin(z), ymax(z)]` where the band endpoints are linear in z
+    with coefficients of known sign, hence:
+      Z: the feasible z form a contiguous range computed exactly by
+         comparing the band with [y.lb, y.ub] (one division per inequality);
+      Y: y is narrowed to the hull of the band endpoints over the narrowed
+         z (the endpoints are monotone in z);
+      X: x is narrowed to the 4-corner hull of the division (monotone in y,
+         and in z for each fixed y).
+    The two slices are then joined back into x, y, z.  Only two positive-
+    slice solvers are needed (ztdiv_pos and zfdiv_pos); every other case
+    reduces to them through the mirror identities
+      trunc(y/z) = -trunc(y/(-z))        floor(y/z) = floor((-y)/(-z))
+      ceil(y/z)  = -floor((-y)/z)        ceil(y/z)  = -floor(y/(-z))
+    applied by mirroring the intervals of x, y and/or z.  Every corner
+    computation goes through the infinity-aware helpers (imul, sadd,
+    idiv_*), so unbounded intervals refine exactly as much as bounded ones
+    would in the limit.  Only the copies needed to join the two slices are
+    used. */
+
+// [l, u] := [-u, -l], with the sentinel encoding (bot maps to bot).
+template<class VT>
+CUDA INLINE constexpr void zmirror(ZInterval<VT>& a) {
+  a = ZInterval<VT>(ineg<VT>(a.ub()), ineg<VT>(a.lb()));
+}
+
+// Contracts x, y, z for x = tdiv(y, z) (truncated division) on the positive
+// slice of z: z is first met with [1, +oo]; x and y are only narrowed if the
+// slice is feasible (z not bot on exit).
+// For z >= 1: tdiv(y, z) in [x.lb, x.ub]  <=>  y in [tymin(x.lb, z), tymax(x.ub, z)]
+//   with tymin(v, z) = v > 0 ? v*z : (v-1)*z + 1
+//   and  tymax(v, z) = v >= 0 ? (v+1)*z - 1 : v*z.
+template<class VT>
+CUDA INLINE constexpr void ztdiv_pos(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::min;
+  using battery::max;
+  z.lb().meet(VT{1});
+  if(z.is_bot()) { return; }
+
+  // Z: tymin(x.lb, z) <= y.ub
+  if(x.lb() > VT{0}) { z.ub().meet(idiv_f<VT>(y.ub(), x.lb())); } // x.lb * z <= y.ub
+  else { z.lb().meet(idiv_c<VT>(sadd<VT>(y.ub(), VT{-1}), sadd<VT>(x.lb(), VT{-1}))); } // (x.lb - 1) * z <= y.ub - 1
+  // Z: tymax(x.ub, z) >= y.lb
+  if(x.ub() >= VT{0}) { z.lb().meet(idiv_c<VT>(sadd<VT>(y.lb(), VT{1}), sadd<VT>(x.ub(), VT{1}))); } // (x.ub + 1) * z >= y.lb + 1
+  else { z.ub().meet(idiv_f<VT>(y.lb(), x.ub())); } // x.ub * z >= y.lb
+  if(z.is_bot()) { return; }
+
+  // Y: hull of [tymin(x.lb, z), tymax(x.ub, z)] over the narrowed z.
+  if(x.lb() > VT{0}) {
+    y.lb().meet(min(imul<VT>(x.lb(), z.lb()), imul<VT>(x.lb(), z.ub())));
+  }
+  else {
+    y.lb().meet(min(sadd<VT>(imul<VT>(sadd<VT>(x.lb(), VT{-1}), z.lb()), VT{1}),
+                    sadd<VT>(imul<VT>(sadd<VT>(x.lb(), VT{-1}), z.ub()), VT{1})));
+  }
+  if(x.ub() >= VT{0}) {
+    y.ub().meet(max(sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.lb()), VT{-1}),
+                    sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.ub()), VT{-1})));
+  }
+  else {
+    y.ub().meet(max(imul<VT>(x.ub(), z.lb()), imul<VT>(x.ub(), z.ub())));
+  }
+  if(y.is_bot()) { return; }
+
+  // X: 4-corner hull of tdiv(y, z).
+  x.lb().meet(min(min(idiv_t<VT>(y.lb(), z.lb()), idiv_t<VT>(y.lb(), z.ub())),
+                  min(idiv_t<VT>(y.ub(), z.lb()), idiv_t<VT>(y.ub(), z.ub()))));
+  x.ub().meet(max(max(idiv_t<VT>(y.lb(), z.lb()), idiv_t<VT>(y.lb(), z.ub())),
+                  max(idiv_t<VT>(y.ub(), z.lb()), idiv_t<VT>(y.ub(), z.ub()))));
+}
+
+// Contracts x, y, z for x = fdiv(y, z) (floor division) on the positive
+// slice of z: z is first met with [1, +oo]; x and y are only narrowed if the
+// slice is feasible (z not bot on exit).
+// For z >= 1: fdiv(y, z) in [x.lb, x.ub]  <=>  y in [x.lb*z, (x.ub+1)*z - 1].
+template<class VT>
+CUDA INLINE constexpr void zfdiv_pos(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::min;
+  using battery::max;
+  z.lb().meet(VT{1});
+  if(z.is_bot()) { return; }
+
+  // Z: x.lb * z <= y.ub
+  if(x.lb() > VT{0}) { z.ub().meet(idiv_f<VT>(y.ub(), x.lb())); }
+  else if(x.lb() != VT{0}) { z.lb().meet(idiv_c<VT>(y.ub(), x.lb())); }
+  else if(y.ub() < VT{0}) { z.meet_bot(); }
+  // Z: (x.ub + 1) * z >= y.lb + 1
+  if(x.ub() > VT{-1}) { z.lb().meet(idiv_c<VT>(sadd<VT>(y.lb(), VT{1}), sadd<VT>(x.ub(), VT{1}))); }
+  else if(x.ub() != VT{-1}) { z.ub().meet(idiv_f<VT>(sadd<VT>(y.lb(), VT{1}), sadd<VT>(x.ub(), VT{1}))); }
+  else if(y.lb() >= VT{0}) { z.meet_bot(); }
+  if(z.is_bot()) { return; }
+
+  // Y: hull of [x.lb*z, (x.ub+1)*z - 1] over the narrowed z.
+  y.lb().meet(min(imul<VT>(x.lb(), z.lb()), imul<VT>(x.lb(), z.ub())));
+  y.ub().meet(max(sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.lb()), VT{-1}),
+                  sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.ub()), VT{-1})));
+  if(y.is_bot()) { return; }
+
+  // X: 4-corner hull of fdiv(y, z).
+  x.lb().meet(min(min(idiv_f<VT>(y.lb(), z.lb()), idiv_f<VT>(y.lb(), z.ub())),
+                  min(idiv_f<VT>(y.ub(), z.lb()), idiv_f<VT>(y.ub(), z.ub()))));
+  x.ub().meet(max(max(idiv_f<VT>(y.lb(), z.lb()), idiv_f<VT>(y.lb(), z.ub())),
+                  max(idiv_f<VT>(y.ub(), z.lb()), idiv_f<VT>(y.ub(), z.ub()))));
+}
+
+// x = tdiv(y, z) (truncated division), z != 0.
+template<class VT>
+CUDA INLINE constexpr void ztdiv_4(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  ZInterval<VT> x2(x), y2(y), z2(z);
+  // CASE 1: z is positive.
+  ztdiv_pos(x, y, z);
+  // CASE 2: z is negative: trunc(y/z) = -trunc(y/(-z)).
+  zmirror(x2);
+  zmirror(z2);
+  ztdiv_pos(x2, y2, z2);
+  zmirror(x2);
+  zmirror(z2);
+  if(x.is_bot() || y.is_bot() || z.is_bot()) {
+    x = x2;
+    y = y2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !y2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    y.join(y2);
+    z.join(z2);
+  }
+}
+
+// x = fdiv(y, z) (floor division), z != 0.
+template<class VT>
+CUDA INLINE constexpr void zfdiv_4(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  ZInterval<VT> x2(x), y2(y), z2(z);
+  // CASE 1: z is positive.
+  zfdiv_pos(x, y, z);
+  // CASE 2: z is negative: floor(y/z) = floor((-y)/(-z)).
+  zmirror(y2);
+  zmirror(z2);
+  zfdiv_pos(x2, y2, z2);
+  zmirror(y2);
+  zmirror(z2);
+  if(x.is_bot() || y.is_bot() || z.is_bot()) {
+    x = x2;
+    y = y2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !y2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    y.join(y2);
+    z.join(z2);
+  }
+}
+
+// x = cdiv(y, z) (ceiling division), z != 0.
+template<class VT>
+CUDA INLINE constexpr void zcdiv_4(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  ZInterval<VT> x2(x), y2(y), z2(z);
+  // CASE 1: z is positive: ceil(y/z) = -floor((-y)/z).
+  zmirror(x);
+  zmirror(y);
+  zfdiv_pos(x, y, z);
+  zmirror(x);
+  zmirror(y);
+  // CASE 2: z is negative: ceil(y/z) = -floor(y/(-z)).
+  zmirror(x2);
+  zmirror(z2);
+  zfdiv_pos(x2, y2, z2);
+  zmirror(x2);
+  zmirror(z2);
+  if(x.is_bot() || y.is_bot() || z.is_bot()) {
+    x = x2;
+    y = y2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !y2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    y.join(y2);
+    z.join(z2);
+  }
+}
+
+// x = ediv(y, z) (Euclidean division: y = x*z + r with 0 <= r < |z|), z != 0.
+template<class VT>
+CUDA INLINE constexpr void zediv_4(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  ZInterval<VT> x2(x), y2(y), z2(z);
+  // CASE 1: z is positive: Euclidean division is the floor division.
+  zfdiv_pos(x, y, z);
+  // CASE 2: z is negative: ... and the ceiling division, ceil(y/z) = -floor(y/(-z)).
+  zmirror(x2);
+  zmirror(z2);
+  zfdiv_pos(x2, y2, z2);
+  zmirror(x2);
+  zmirror(z2);
+  if(x.is_bot() || y.is_bot() || z.is_bot()) {
+    x = x2;
+    y = y2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !y2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    y.join(y2);
+    z.join(z2);
+  }
+}
+
+} // namespace tell
+
 } // namespace lala
 
 #endif
