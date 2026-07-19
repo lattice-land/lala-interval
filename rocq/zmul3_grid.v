@@ -3,7 +3,7 @@
       solution of x = y*z) and reductive.
    2. INFINITE: same checks on all stores with bounds in {-oo,-2..2,+oo},
       solutions sampled in the window [-6,6]^2 for (y,z). *)
-From LalaInterval Require Import itv fdiv2 fdiv3 zadd3 zmul3.
+From LalaInterval Require Import itv3 zadd3 zmul3.
 From Stdlib Require Import ZArith Lia List Bool. Import ListNotations.
 Open Scope Z_scope.
 

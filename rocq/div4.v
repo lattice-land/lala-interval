@@ -183,11 +183,7 @@ Definition csol (x y z : Z) : Prop := z <> 0 /\ x = cdiv y z.
 Definition esol (x y z : Z) : Prop :=
   z <> 0 /\ x = (if 0 <? z then y / z else cdiv y z).
 
-(* generic containment/feasibility, parameterized by the solution predicate *)
-Definition contains3 (P : Z -> Z -> Z -> Prop) (s t : store3) : Prop :=
-  forall vx vy vz, in_store3 s vx vy vz -> P vx vy vz -> in_store3 t vx vy vz.
-Definition feasible3 (P : Z -> Z -> Z -> Prop) (s : store3) : Prop :=
-  exists vx vy vz, in_store3 s vx vy vz /\ P vx vy vz.
+(* generic containment/feasibility [contains3]/[feasible3] are provided by itv3. *)
 
 (* ------------------------------------------------------------------ *)
 (** ** Positive-slice theorems (the proof core)
@@ -1530,18 +1526,6 @@ Qed.
 Lemma ineg3_le : forall a b, zle (ineg3 a) (ineg3 b) <-> zle b a.
 Proof. intros [x| |] [y| |]; cbn; try tauto; lia. Qed.
 
-Lemma ile3_mirror : forall i j, ile3 (mirror_i i) (mirror_i j) <-> ile3 i j.
-Proof.
-  intros i j. unfold ile3, mirror_i; cbn [lo3 hi3].
-  rewrite !ineg3_le. tauto.
-Qed.
-
-Lemma sle3_mir_xz : forall a b, sle3 (mir_xz a) (mir_xz b) <-> sle3 a b.
-Proof.
-  intros a b. unfold sle3, mir_xz; cbn [sx3 sy3 sz3].
-  rewrite !ile3_mirror. tauto.
-Qed.
-
 Lemma nonempty3b_mirror : forall i, nonempty3b (mirror_i i) = nonempty3b i.
 Proof.
   intros [[x| |] [y| |]]; cbn; try reflexivity;
@@ -1553,6 +1537,18 @@ Lemma ne_mir_xz : forall s, ne_store3 (mir_xz s) = ne_store3 s.
 Proof.
   intros s. unfold ne_store3, mir_xz; cbn [sx3 sy3 sz3].
   rewrite !nonempty3b_mirror. reflexivity.
+Qed.
+
+Lemma ile3_mirror : forall i j, ile3 (mirror_i i) (mirror_i j) <-> ile3 i j.
+Proof.
+  intros i j. unfold ile3. rewrite (nonempty3b_mirror i).
+  unfold mirror_i; cbn [lo3 hi3]. rewrite !ineg3_le. tauto.
+Qed.
+
+Lemma sle3_mir_xz : forall a b, sle3 (mir_xz a) (mir_xz b) <-> sle3 a b.
+Proof.
+  intros a b. unfold sle3. rewrite (ne_mir_xz a).
+  unfold mir_xz; cbn [sx3 sy3 sz3]. rewrite !ile3_mirror. tauto.
 Qed.
 
 Lemma ineg3_invol : forall a, ineg3 (ineg3 a) = a.
@@ -1571,11 +1567,17 @@ Qed.
 
 (* ===== join4 = the bottom-absorbing lub; case lemma for sle ===== *)
 
-Lemma sjoin3_lub : forall a b t, sle3 a t -> sle3 b t -> sle3 (sjoin3 a b) t.
+(* the naive join is a LUB only when both inputs are non-empty (quotient order) *)
+Lemma sjoin3_lub : forall a b t,
+  ne_store3 a = true -> ne_store3 b = true ->
+  sle3 a t -> sle3 b t -> sle3 (sjoin3 a b) t.
 Proof.
-  intros a b t (Hax&Hay&Haz) (Hbx&Hby&Hbz).
-  unfold sjoin3, sle3; cbn [sx3 sy3 sz3].
-  repeat split; apply ijoin3_ile3; assumption.
+  intros a b t Ea Eb Ha Hb.
+  destruct (ne_store3_parts a Ea) as (Eax & Eay & Eaz).
+  destruct (ne_store3_parts b Eb) as (Ebx & Eby & Ebz).
+  apply (sle3_ne_inv a t Ea) in Ha as (Hax & Hay & Haz).
+  apply (sle3_ne_inv b t Eb) in Hb as (Hbx & Hby & Hbz).
+  apply sle3_intro; unfold sjoin3; cbn [sx3 sy3 sz3]; apply ijoin3_ile3; assumption.
 Qed.
 
 Lemma join4_sle_cases : forall pos neg t,
@@ -1587,7 +1589,7 @@ Proof.
   intros pos neg t Hp Hn Hne. unfold join4 in *.
   destruct (ne_store3 pos) eqn:Ep; cbn [negb] in *.
   - destruct (ne_store3 neg) eqn:En; cbn [negb] in *.
-    + apply sjoin3_lub; [apply Hp; reflexivity | apply Hn; reflexivity].
+    + apply sjoin3_lub; [exact Ep | exact En | apply Hp; reflexivity | apply Hn; reflexivity].
     + apply Hp; reflexivity.
   - apply Hn; exact Hne.
 Qed.
@@ -1613,16 +1615,16 @@ Proof.
   apply andb_true_iff in H as [H Hz]. apply andb_true_iff in H as [Hx Hy]. auto.
 Qed.
 
-Lemma sle3_mir_yz : forall a b, sle3 (mir_yz a) (mir_yz b) <-> sle3 a b.
-Proof.
-  intros a b. unfold sle3, mir_yz; cbn [sx3 sy3 sz3].
-  rewrite !ile3_mirror. tauto.
-Qed.
-
 Lemma ne_mir_yz : forall s, ne_store3 (mir_yz s) = ne_store3 s.
 Proof.
   intros s. unfold ne_store3, mir_yz; cbn [sx3 sy3 sz3].
   rewrite !nonempty3b_mirror. reflexivity.
+Qed.
+
+Lemma sle3_mir_yz : forall a b, sle3 (mir_yz a) (mir_yz b) <-> sle3 a b.
+Proof.
+  intros a b. unfold sle3. rewrite (ne_mir_yz a).
+  unfold mir_yz; cbn [sx3 sy3 sz3]. rewrite !ile3_mirror. tauto.
 Qed.
 
 Lemma mir_yz_invol : forall s, mir_yz (mir_yz s) = s.
@@ -1850,8 +1852,7 @@ Proof.
   assert (Hyfyh : zle (hi3 yF) (hi3 (sy3 s))) by (rewrite HyF; cbn [hi3]; apply zmin_zle_l).
   assert (Hyflo_hi : zle (lo3 yF) (hi3 (sy3 s))) by (eapply zle_trans; [exact Hyfne | exact Hyfyh]).
   assert (Hyfhi_lo : zle (lo3 (sy3 s)) (hi3 yF)) by (eapply zle_trans; [exact Hyfyl | exact Hyfne]).
-  unfold sle3; cbn [sx3 sy3 sz3].
-  split; [ | split ].
+  apply sle3_intro; cbn [sx3 sy3 sz3].
   - (* ===== X-COMPONENT (goal 1) ===== *)
     assert (Hlyf : forall vz, zle (lo3 z2) (Fin vz) -> zle (Fin vz) (hi3 z2) ->
       zle (lo3 yF) (tymaxZ (hi3 (sx3 s)) vz)).
@@ -1878,7 +1879,7 @@ Proof.
       - cbn [tyminZ zpos]. rewrite Hzlo2; cbn [sadd3]; rewrite imul3_ninf_fp by lia; cbn; exact I. }
     assert (Hbf : forall X a, zleb (Fin a) X = false -> zle X (Fin (a - 1))).
     { intros [x| |] a Hb; cbn in Hb |- *; [ apply Z.leb_gt in Hb; lia | discriminate | exact I ]. }
-    unfold ile3. cbn [lo3 hi3]. split.
+  apply ile3_intro; cbn [lo3 hi3].
     { (* --- x-lower --- *)
       assert (Hcx : forall vz, zle (lo3 z2) (Fin vz) -> zle (Fin vz) (hi3 z2) ->
         forall ylv, lo3 yF = Fin ylv -> zle (lo3 (sx3 s)) (Fin (Z.quot ylv vz)) ->
@@ -2138,7 +2139,7 @@ Proof.
           * congruence.
         + apply (Hclipxu zlo2 Hzlo2lo Hzlo2hi). rewrite Hzlo2 in Ehl. apply Hbfu. exact Ehl. }
   - (* ===== Y-COMPONENT (goal 2) ===== *)
-    split.
+    apply ile3_intro.
     + (* --- y-lower --- *)
       destruct (lo3 yF) as [vlo| |] eqn:Eylo.
       2:{ pose proof (nonempty_bounds _ EY) as [HH _]; congruence. }
@@ -2362,7 +2363,7 @@ Proof.
       destruct Hexu as [vzs [A [B [C D]]]].
       destruct (Hatt vzs vhi A B Hyfhi_lo Hyfyh C D) as [_ HH]. exact HH.
   - (* ===== Z-COMPONENT (goal 3) ===== *)
-    split.
+    apply ile3_intro.
     + destruct (Hpickvy zlo2 Hzlo2lo Hzlo2hi) as [vy [Hmy [Hby1 Hby2]]].
       destruct (Hwit zlo2 vy Hzlo2lo Hzlo2hi Hmy Hby1 Hby2) as (_ & _ & Hmzt).
       rewrite Hzlo2. apply (mem3_lo (sz3 t) zlo2 Hmzt).
@@ -2843,8 +2844,7 @@ Proof.
   assert (Hyfyh : zle (hi3 yF) (hi3 (sy3 s))) by (rewrite HyF; cbn [hi3]; apply zmin_zle_l).
   assert (Hyflo_hi : zle (lo3 yF) (hi3 (sy3 s))) by (eapply zle_trans; [exact Hyfne | exact Hyfyh]).
   assert (Hyfhi_lo : zle (lo3 (sy3 s)) (hi3 yF)) by (eapply zle_trans; [exact Hyfyl | exact Hyfne]).
-  unfold sle3; cbn [sx3 sy3 sz3].
-  split; [ | split ].
+  apply sle3_intro; cbn [sx3 sy3 sz3].
   assert (Hlyf : forall vz, zle (lo3 z2) (Fin vz) -> zle (Fin vz) (hi3 z2) ->
     zle (lo3 yF) (fymaxZ (hi3 (sx3 s)) vz)).
   { intros vz Hvlo Hvhi.
@@ -2863,7 +2863,7 @@ Proof.
     apply (flo_ycorner_hi (hi3 (sx3 s)) (lo3 z2) (hi3 z2) vz Hz2l1 Hvlo Hvhi). }
   assert (Hbf : forall X a, zleb (Fin a) X = false -> zle X (Fin (a - 1))).
   { intros [x| |] a Hb; cbn in Hb |- *; [ apply Z.leb_gt in Hb; lia | discriminate | exact I ]. }
-  unfold ile3. cbn [lo3 hi3]. split.
+  apply ile3_intro; cbn [lo3 hi3].
   { assert (Hcx : forall vz, zle (lo3 z2) (Fin vz) -> zle (Fin vz) (hi3 z2) ->
       forall ylv, lo3 yF = Fin ylv -> zle (lo3 (sx3 s)) (Fin (ylv / vz)) ->
       zle (lo3 (sx3 t)) (Fin (ylv / vz))).
@@ -3127,7 +3127,7 @@ Proof.
              ++ pose proof (nonempty_bounds _ EY) as [_ HH]; congruence.
         * congruence.
       + apply (Hclipxu zlo2 Hzlo2lo Hzlo2hi). rewrite Hzlo2 in Ehl. apply Hbfu. exact Ehl. }
-  unfold ile3. cbn [lo3 hi3]. split.
+  apply ile3_intro; cbn [lo3 hi3].
   { destruct (lo3 yF) as [vlo| |] eqn:Eylo.
     - assert (Hex : exists vzs, zle (lo3 z2) (Fin vzs) /\ zle (Fin vzs) (hi3 z2) /\
         zle (fyminZ (lo3 (sx3 s)) vzs) (Fin vlo) /\ zle (Fin vlo) (fymaxZ (hi3 (sx3 s)) vzs)).
@@ -3362,7 +3362,7 @@ Proof.
           pose proof (mem3_hi (sy3 t) vy Hmyt) as HH. rewrite EtH in HH. cbn in HH. unfold vy in HH. lia.
       + congruence.
     - pose proof (nonempty_bounds _ EY) as [_ HH]; congruence. }
-  unfold ile3. cbn [lo3 hi3]. split.
+  apply ile3_intro; cbn [lo3 hi3].
   + destruct (Hpickvy zlo2 Hzlo2lo Hzlo2hi) as [vy [Hmy [Hby1 Hby2]]].
     destruct (Hwit zlo2 vy Hzlo2lo Hzlo2hi Hmy Hby1 Hby2) as (_ & _ & Hmzt).
     rewrite Hzlo2. apply (mem3_lo (sz3 t) zlo2 Hmzt).
@@ -3384,7 +3384,7 @@ Proof.
 Qed.
 
 
-Theorem ztdiv4_complete : forall s,
+Lemma ztdiv4_best_feasible : forall s,
   feasible3 tsol s -> forall t, contains3 tsol s t -> sle3 (ztdiv4 s) t.
 Proof.
   intros s Hf t Hct.
@@ -3418,7 +3418,7 @@ Proof.
       rewrite !Z.opp_involutive in Hmt. exact Hmt.
 Qed.
 
-Theorem zfdiv4_complete : forall s,
+Lemma zfdiv4_best_feasible : forall s,
   feasible3 sol s -> forall t, contains3 sol s t -> sle3 (zfdiv4 s) t.
 Proof.
   intros s Hf t Hct.
@@ -3456,16 +3456,16 @@ Proof.
   rewrite !mirror_i_invol. reflexivity.
 Qed.
 
-Lemma sle3_mir_xy : forall a b, sle3 (mir_xy a) (mir_xy b) <-> sle3 a b.
-Proof.
-  intros a b. unfold sle3, mir_xy; cbn [sx3 sy3 sz3].
-  rewrite !ile3_mirror. tauto.
-Qed.
-
 Lemma ne_mir_xy : forall s, ne_store3 (mir_xy s) = ne_store3 s.
 Proof.
   intros s. unfold ne_store3, mir_xy; cbn [sx3 sy3 sz3].
   rewrite !nonempty3b_mirror. reflexivity.
+Qed.
+
+Lemma sle3_mir_xy : forall a b, sle3 (mir_xy a) (mir_xy b) <-> sle3 a b.
+Proof.
+  intros a b. unfold sle3. rewrite (ne_mir_xy a).
+  unfold mir_xy; cbn [sx3 sy3 sz3]. rewrite !ile3_mirror. tauto.
 Qed.
 
 Lemma in_mir_xy_inv : forall s vx vy vz,
@@ -3487,7 +3487,7 @@ Proof.
   unfold cdiv. rewrite Z.div_opp_opp by lia. lia.
 Qed.
 
-Theorem zcdiv4_complete : forall s,
+Lemma zcdiv4_best_feasible : forall s,
   feasible3 csol s -> forall t, contains3 csol s t -> sle3 (zcdiv4 s) t.
 Proof.
   intros s Hf t Hct.
@@ -3542,7 +3542,7 @@ Proof.
   split; [lia | ]. rewrite (proj2 (Z.ltb_ge 0 (- vz)) ltac:(lia)). exact Hq.
 Qed.
 
-Theorem zediv4_complete : forall s,
+Lemma zediv4_best_feasible : forall s,
   feasible3 esol s -> forall t, contains3 esol s t -> sle3 (zediv4 s) t.
 Proof.
   intros s Hf t Hct.
@@ -3661,3 +3661,79 @@ Proof.
     exists (- vx), vy, (- vz).
     split; [ apply in_mir_xz_inv; exact Hin | apply esol_of_sol_xz_neg; [exact Hsol | lia] ].
 Qed.
+
+(* ---- best abstract transformer, UNCONDITIONAL (no feasibility hypothesis):
+        under the quotient order an empty output is bottom (below every [t]);
+        a non-empty one is feasible (via ne-feasibility), so [_best_feasible]
+        applies. *)
+Theorem ztdiv4_complete : forall s t, contains3 tsol s t -> sle3 (ztdiv4 s) t.
+Proof.
+  intros s t Hct. destruct (ne_store3 (ztdiv4 s)) eqn:E;
+    [ exact (ztdiv4_best_feasible s (ztdiv4_ne_feasible s E) t Hct) | apply sle3_bot; exact E ].
+Qed.
+Theorem zfdiv4_complete : forall s t, contains3 sol s t -> sle3 (zfdiv4 s) t.
+Proof.
+  intros s t Hct. destruct (ne_store3 (zfdiv4 s)) eqn:E;
+    [ exact (zfdiv4_best_feasible s (zfdiv4_ne_feasible s E) t Hct) | apply sle3_bot; exact E ].
+Qed.
+Theorem zcdiv4_complete : forall s t, contains3 csol s t -> sle3 (zcdiv4 s) t.
+Proof.
+  intros s t Hct. destruct (ne_store3 (zcdiv4 s)) eqn:E;
+    [ exact (zcdiv4_best_feasible s (zcdiv4_ne_feasible s E) t Hct) | apply sle3_bot; exact E ].
+Qed.
+Theorem zediv4_complete : forall s t, contains3 esol s t -> sle3 (zediv4 s) t.
+Proof.
+  intros s t Hct. destruct (ne_store3 (zediv4 s)) eqn:E;
+    [ exact (zediv4_best_feasible s (zediv4_ne_feasible s E) t Hct) | apply sle3_bot; exact E ].
+Qed.
+
+(* ================================================================== *)
+(** ** Closure-operator properties of the four propagators             *)
+(*                                                                     *)
+(*  A generic derivation ([closure_laws], itv3): any propagator that is *)
+(*  SOUND, a best abstract transformer, and ne-feasible is an           *)
+(*  UNCONDITIONAL lower closure operator over the quotient order --      *)
+(*  reductive, monotone, and idempotent up to the bottom equivalence ~. *)
+(*  Instantiated for truncated/floor/ceiling/euclidean.                 *)
+(* ================================================================== *)
+
+(* Under the QUOTIENT order, soundness + best-transformer + ne-feasibility
+   make each propagator an UNCONDITIONAL lower closure operator, via the
+   generic [closure_laws] of itv3: reductive, monotone, and idempotent up
+   to the bottom equivalence ~ (mutual [sle3]).  No feasibility guard. *)
+
+(* Truncated *)
+Theorem ztdiv4_reductive : forall s, sle3 (ztdiv4 s) s.
+Proof. exact (proj1 (closure_laws tsol ztdiv4 ztdiv4_soundness (fun s _ => ztdiv4_complete s) ztdiv4_ne_feasible)). Qed.
+Theorem ztdiv4_monotone : forall s t, sle3 s t -> sle3 (ztdiv4 s) (ztdiv4 t).
+Proof. exact (proj1 (proj2 (closure_laws tsol ztdiv4 ztdiv4_soundness (fun s _ => ztdiv4_complete s) ztdiv4_ne_feasible))). Qed.
+Theorem ztdiv4_idempotent : forall s,
+  sle3 (ztdiv4 (ztdiv4 s)) (ztdiv4 s) /\ sle3 (ztdiv4 s) (ztdiv4 (ztdiv4 s)).
+Proof. exact (proj2 (proj2 (closure_laws tsol ztdiv4 ztdiv4_soundness (fun s _ => ztdiv4_complete s) ztdiv4_ne_feasible))). Qed.
+
+(* Floor *)
+Theorem zfdiv4_reductive : forall s, sle3 (zfdiv4 s) s.
+Proof. exact (proj1 (closure_laws sol zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible)). Qed.
+Theorem zfdiv4_monotone : forall s t, sle3 s t -> sle3 (zfdiv4 s) (zfdiv4 t).
+Proof. exact (proj1 (proj2 (closure_laws sol zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible))). Qed.
+Theorem zfdiv4_idempotent : forall s,
+  sle3 (zfdiv4 (zfdiv4 s)) (zfdiv4 s) /\ sle3 (zfdiv4 s) (zfdiv4 (zfdiv4 s)).
+Proof. exact (proj2 (proj2 (closure_laws sol zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible))). Qed.
+
+(* Ceiling *)
+Theorem zcdiv4_reductive : forall s, sle3 (zcdiv4 s) s.
+Proof. exact (proj1 (closure_laws csol zcdiv4 zcdiv4_soundness (fun s _ => zcdiv4_complete s) zcdiv4_ne_feasible)). Qed.
+Theorem zcdiv4_monotone : forall s t, sle3 s t -> sle3 (zcdiv4 s) (zcdiv4 t).
+Proof. exact (proj1 (proj2 (closure_laws csol zcdiv4 zcdiv4_soundness (fun s _ => zcdiv4_complete s) zcdiv4_ne_feasible))). Qed.
+Theorem zcdiv4_idempotent : forall s,
+  sle3 (zcdiv4 (zcdiv4 s)) (zcdiv4 s) /\ sle3 (zcdiv4 s) (zcdiv4 (zcdiv4 s)).
+Proof. exact (proj2 (proj2 (closure_laws csol zcdiv4 zcdiv4_soundness (fun s _ => zcdiv4_complete s) zcdiv4_ne_feasible))). Qed.
+
+(* Euclidean *)
+Theorem zediv4_reductive : forall s, sle3 (zediv4 s) s.
+Proof. exact (proj1 (closure_laws esol zediv4 zediv4_soundness (fun s _ => zediv4_complete s) zediv4_ne_feasible)). Qed.
+Theorem zediv4_monotone : forall s t, sle3 s t -> sle3 (zediv4 s) (zediv4 t).
+Proof. exact (proj1 (proj2 (closure_laws esol zediv4 zediv4_soundness (fun s _ => zediv4_complete s) zediv4_ne_feasible))). Qed.
+Theorem zediv4_idempotent : forall s,
+  sle3 (zediv4 (zediv4 s)) (zediv4 s) /\ sle3 (zediv4 s) (zediv4 (zediv4 s)).
+Proof. exact (proj2 (proj2 (closure_laws esol zediv4 zediv4_soundness (fun s _ => zediv4_complete s) zediv4_ne_feasible))). Qed.
