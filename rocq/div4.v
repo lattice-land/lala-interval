@@ -23,7 +23,7 @@
     [fdiv3]; none of that file's admitted theorems is used here. *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import itv fdiv2 fdiv3.
+From LalaInterval Require Import itv3.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
@@ -177,7 +177,7 @@ Definition zediv4 (s : store3) : store3 :=
 (** ** Solutions of the four divisions                                 *)
 (* ------------------------------------------------------------------ *)
 
-(* floor: fdiv2.sol = z <> 0 /\ x = y / z (Z.div is the floor division) *)
+(* floor: sol = z <> 0 /\ x = y / z (Z.div is the floor division) *)
 Definition tsol (x y z : Z) : Prop := z <> 0 /\ x = Z.quot y z.
 Definition csol (x y z : Z) : Prop := z <> 0 /\ x = cdiv y z.
 Definition esol (x y z : Z) : Prop :=
@@ -215,20 +215,12 @@ Definition slice_contains (P : Z -> Z -> Z -> Prop) (s t : store3) : Prop :=
 (* floor, positive divisor *)
 Lemma F1 : forall n d q, 0 < d -> d*q <= n -> q <= n / d.
 Proof. intros; apply Z.div_le_lower_bound; auto. Qed.
-Lemma F2 : forall n d q, 0 < d -> n <= d*q -> n / d <= q.
-Proof. intros; apply Z.div_le_upper_bound; auto. Qed.
 (* floor, negative divisor *)
 Lemma FN1 : forall n d q, d < 0 -> n <= d*q -> q <= n / d.
 Proof.
   intros n d q Hd Hle.
   rewrite <- (Z.div_opp_opp n d) by lia.
   apply Z.div_le_lower_bound; lia.
-Qed.
-Lemma FN2 : forall n d q, d < 0 -> d*q <= n -> n / d <= q.
-Proof.
-  intros n d q Hd Hle.
-  rewrite <- (Z.div_opp_opp n d) by lia.
-  apply Z.div_le_upper_bound; lia.
 Qed.
 (* ceil = cdiv, positive divisor *)
 Lemma CC1 : forall n d q, 0 < d -> n <= d*q -> cdiv n d <= q.
@@ -237,25 +229,12 @@ Proof.
   assert (H: - q <= (- n) / d) by (apply Z.div_le_lower_bound; lia).
   lia.
 Qed.
-Lemma CC2 : forall n d q, 0 < d -> d*q <= n -> q <= cdiv n d.
-Proof.
-  intros n d q Hd Hle. unfold cdiv.
-  assert (H: (- n) / d <= - q) by (apply Z.div_le_upper_bound; lia).
-  lia.
-Qed.
 (* ceil = cdiv, negative divisor *)
 Lemma C1 : forall n d q, d < 0 -> d*q <= n -> cdiv n d <= q.
 Proof.
   intros n d q Hd Hle. unfold cdiv.
   rewrite <- (Z.div_opp_opp (-n) d) by lia.
   assert (H: - q <= (- - n) / (- d)) by (apply Z.div_le_lower_bound; lia).
-  lia.
-Qed.
-Lemma C2 : forall n d q, d < 0 -> n <= d*q -> q <= cdiv n d.
-Proof.
-  intros n d q Hd Hle. unfold cdiv.
-  rewrite <- (Z.div_opp_opp (-n) d) by lia.
-  assert (H: (- - n) / (- d) <= - q) by (apply Z.div_le_upper_bound; lia).
   lia.
 Qed.
 
@@ -1591,8 +1570,6 @@ Proof.
 Qed.
 
 (* ===== join4 = the bottom-absorbing lub; case lemma for sle ===== *)
-Lemma ile3_ijoin3 : forall i j k, ile3 i k -> ile3 j k -> ile3 (ijoin3 i j) k.
-Proof. exact ijoin3_ile3. Qed.
 
 Lemma sjoin3_lub : forall a b t, sle3 a t -> sle3 b t -> sle3 (sjoin3 a b) t.
 Proof.
