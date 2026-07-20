@@ -1,9 +1,11 @@
 -R . LalaInterval
 itv.v
-fdiv.v
-fdiv2.v
-fdiv3.v
-itv3.v
-zadd3.v
-zmul3.v
-cdiv2.v
+itv_lattice.v
+store_lattice.v
+cartesian_propagators.v
+galois_props.v
+zadd.v
+zmul.v
+zmod.v
+zdiv.v
+equivcpp.v

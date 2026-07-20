@@ -630,26 +630,34 @@ CUDA INLINE constexpr void zsub(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT
   zadd(y, x, z);
 }
 
+#define INF battery::limits<VT>::inf()
+#define NINF battery::limits<VT>::neg_inf()
+
+template<class VT>
+CUDA INLINE constexpr VT ineg(VT a) {
+  return a == INF ? NINF : (a == NINF ? INF : static_cast<VT>(-a));
+}
+
+// Precondition: a == INF || a == NINF
+template<class VT>
+CUDA INLINE constexpr VT ineg2(VT a) {
+  return a == INF ? NINF : INF;
+}
+
 /** Infinity-aware addition/subtraction (battery::limits sentinel encoding).
     Precondition of use: the two operands never combine opposite infinities
     (guaranteed by the hull corners below: lower corners are never +oo and
     upper corners never -oo on non-empty intervals). */
 template<class VT>
 CUDA INLINE constexpr VT iadd(VT a, VT b) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(a == inf || a == ninf) { return a; }
-  if(b == inf || b == ninf) { return b; }
-  return a + b;
+  if(a != INF && a != NINF && b != INF && b != NINF) { return a + b; }
+  return (a == INF || a == NINF) ? a : b;
 }
+
 template<class VT>
 CUDA INLINE constexpr VT isub(VT a, VT b) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(a == inf || a == ninf) { return a; }
-  if(b == inf) { return ninf; }
-  if(b == ninf) { return inf; }
-  return a - b;
+  if(a != INF && a != NINF && b != INF && b != NINF) { return a - b; }
+  return (a == INF || a == NINF) ? a : ineg2(b);
 }
 
 /** Infinity-aware arithmetic on VT with the battery::limits sentinel encoding
@@ -660,65 +668,42 @@ CUDA INLINE constexpr VT isub(VT a, VT b) {
 // Saturating addition of a small finite shift (the +-1 of the band formulas).
 template<class VT>
 CUDA INLINE constexpr VT sadd(VT a, VT b) {
-  return (a == battery::limits<VT>::inf() || a == battery::limits<VT>::neg_inf()) ? a : a + b;
+  return (a == INF || a == NINF) ? a : a + b;
 }
 
 // Multiplication with the sign rule and 0 * oo = 0 (exact for interval hulls).
 template<class VT>
 CUDA INLINE constexpr VT imul(VT a, VT b) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
+  if(a != INF && a != NINF && b != INF && b != NINF) { return a * b; }
   if(a == VT{0} || b == VT{0}) { return VT{0}; }
-  if(a == inf)  { return b > VT{0} ? inf : ninf; }
-  if(a == ninf) { return b > VT{0} ? ninf : inf; }
-  if(b == inf)  { return a > VT{0} ? inf : ninf; }
-  if(b == ninf) { return a > VT{0} ? ninf : inf; }
-  return a * b;
+  return battery::same_sign(a, b) ? INF : NINF;
 }
 
-// floor(n/m) with limit semantics; precondition: m != 0.
-// For an infinite divisor the quotient is the eventual value of floor(n/z)
-// (0 when the signs agree, -1 otherwise) -- uniformly correct, including for
-// infinite n, in every min/max corner expression where it occurs.
+// floor(a/b) with limit semantics; precondition: b != 0.
 template<class VT>
-CUDA INLINE constexpr VT idiv_f(VT n, VT m) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(m == inf)  { return n < VT{0} ? VT{-1} : VT{0}; }
-  if(m == ninf) { return n > VT{0} ? VT{-1} : VT{0}; }
-  if(n == inf)  { return m > VT{0} ? inf : ninf; }
-  if(n == ninf) { return m > VT{0} ? ninf : inf; }
-  return battery::fdiv<VT>(n, m);
+CUDA INLINE constexpr VT idiv_f(VT a, VT b) {
+  assert(b != VT{0});
+  if(a != INF && a != NINF && b != INF && b != NINF) { return battery::fdiv<VT>(a, b); }
+  if(b == INF)  { return a < VT{0} ? VT{-1} : VT{0}; }
+  if(b == NINF) { return a > VT{0} ? VT{-1} : VT{0}; }
+  return b > VT{0} ? a : ineg2(a);
 }
 
-// ceil(n/m) with limit semantics; precondition: m != 0.
+// ceil(a/b) with limit semantics; precondition: b != 0.
 template<class VT>
-CUDA INLINE constexpr VT idiv_c(VT n, VT m) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(m == inf)  { return n > VT{0} ? VT{1} : VT{0}; }
-  if(m == ninf) { return n < VT{0} ? VT{1} : VT{0}; }
-  if(n == inf)  { return m > VT{0} ? inf : ninf; }
-  if(n == ninf) { return m > VT{0} ? ninf : inf; }
-  return battery::cdiv<VT>(n, m);
+CUDA INLINE constexpr VT idiv_c(VT a, VT b) {
+  if(a != INF && a != NINF && b != INF && b != NINF) { return battery::cdiv<VT>(a, b); }
+  if(b == INF)  { return a > VT{0} ? VT{1} : VT{0}; }
+  if(b == NINF) { return a < VT{0} ? VT{1} : VT{0}; }
+  return b > VT{0} ? a : ineg2(a);
 }
 
-// trunc(n/m) with limit semantics; precondition: m != 0.
+// trunc(a/b) with limit semantics; precondition: b != 0.
 template<class VT>
-CUDA INLINE constexpr VT idiv_t(VT n, VT m) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  if(m == inf || m == ninf) { return VT{0}; }
-  if(n == inf)  { return m > VT{0} ? inf : ninf; }
-  if(n == ninf) { return m > VT{0} ? ninf : inf; }
-  return battery::tdiv<VT>(n, m);
-}
-
-template<class VT>
-CUDA INLINE constexpr VT ineg(VT a) {
-  const VT inf = battery::limits<VT>::inf();
-  const VT ninf = battery::limits<VT>::neg_inf();
-  return a == inf ? ninf : (a == ninf ? inf : static_cast<VT>(-a));
+CUDA INLINE constexpr VT idiv_t(VT a, VT b) {
+  if(a != INF && a != NINF && b != INF && b != NINF) { return battery::tdiv<VT>(a, b); }
+  if(b == INF || b == NINF) { return VT{0}; }
+  return b > VT{0} ? a : ineg2(a);
 }
 
 // x = y * z with PRECISE infinite-bound reasoning. Constant time, no
@@ -1472,6 +1457,49 @@ CUDA INLINE constexpr void zediv_4(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval
     y.join(y2);
     z.join(z2);
   }
+}
+
+// x = tmod(y, z) : truncated modulus (C++ `%`), z != 0.
+//
+// The remainder shares the sign of the dividend and is strictly smaller in
+// magnitude than the divisor:  sign(x) = sign(y),  |x| <= |z| - 1,  |x| <= |y|.
+//
+// It is contracted by TERNARIZING against truncated division: introduce the
+// quotient  q = tdiv(y, z)  and enforce the defining identity
+//        y = q * z + x
+// so the propagator reuses the (verified) division, product and sum contractors
+//   (1) ztdiv_4(q, y, z)   ->  q = tdiv(y, z)
+//   (2) zmul3(p, q, z)     ->  p = q * z
+//   (3) zadd3(y, p, x)     ->  y = p + x
+// tied by the local auxiliaries q and p = q*z, with one forward pass and one
+// backward pass so a refinement of x/y flows back onto q, z (and vice versa).
+template<class VT>
+CUDA INLINE constexpr void ztmod(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  using battery::min;
+  using battery::max;
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  z.neq_zero();                                          // modulus by zero is undefined
+  if(z.is_bot()) { return; }
+
+  // Direct remainder bounds: sign(x) = sign(y), |x| <= |z|-1 and |x| <= |y|.
+  const VT zabs = max<VT>(ineg<VT>(z.lb()), z.ub());     // max |z|  (z.lb <= z.ub)
+  const VT rb   = sadd<VT>(zabs, VT{-1});                // |x| <= |z| - 1
+  x.ub().meet(y.ub() <= VT{0} ? VT{0} : min<VT>(y.ub(), rb));
+  x.lb().meet(y.lb() >= VT{0} ? VT{0} : max<VT>(y.lb(), ineg<VT>(rb)));
+  if(x.is_bot()) { return; }
+
+  // Ternarization:  q = tdiv(y, z)  and  y = q*z + x.
+  ZInterval<VT> q = ZInterval<VT>::top();
+  ZInterval<VT> p = ZInterval<VT>::top();
+  ztdiv_4(q, y, z);              // q <- tdiv(y, z)            (also narrows y, z)
+  if(q.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  zmul3(p, q, z);                // p <- q * z                 (also narrows q, z)
+  if(p.is_bot()) { return; }
+  zadd3(y, p, x);                // y = p + x                  (narrows y, p, x)
+  if(x.is_bot() || y.is_bot() || p.is_bot()) { return; }
+  zmul3(p, q, z);                // push refined p back onto q, z
+  if(q.is_bot() || z.is_bot()) { return; }
+  ztdiv_4(q, y, z);             // push refined q back onto y, z
 }
 
 } // namespace tell

@@ -23,7 +23,7 @@
     [fdiv3]; none of that file's admitted theorems is used here. *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import itv3.
+From LalaInterval Require Import itv.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)

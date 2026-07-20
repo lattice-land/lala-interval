@@ -17,7 +17,7 @@
       - completeness/singleton : [zmul3_singleton_complete] *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import itv3 zadd3.
+From LalaInterval Require Import itv zadd.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
