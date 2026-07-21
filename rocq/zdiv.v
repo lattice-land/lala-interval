@@ -23,7 +23,7 @@
     [fdiv3]; none of that file's admitted theorems is used here. *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import inf Lemmas itv.
+From LalaInterval Require Import Concrete inf Lemmas itv.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
@@ -470,7 +470,7 @@ Proof.
 Qed.
 
 Theorem fpos_sound : forall s vx vy vz,
-  in_store3 s vx vy vz -> sol vx vy vz -> 1 <= vz ->
+  in_store3 s vx vy vz -> is_fdiv_asn vx vy vz -> 1 <= vz ->
   in_store3 (zfdiv_pos3 s) vx vy vz.
 Proof.
   intros s vx vy vz Hin Hsol Hvz1.
@@ -679,7 +679,7 @@ Proof.
 Qed.
 
 Theorem zfdiv4_soundness : forall s vx vy vz,
-  in_store3 s vx vy vz -> sol vx vy vz -> in_store3 (zfdiv4 s) vx vy vz.
+  in_store3 s vx vy vz -> is_fdiv_asn vx vy vz -> in_store3 (zfdiv4 s) vx vy vz.
 Proof.
   intros s vx vy vz Hin Hsol.
   assert (Hne : ne_store3 s = true) by (eapply ne_store3_true; exact Hin).
@@ -689,7 +689,7 @@ Proof.
   - (* vz <= -1 : negative slice via mir_yz *)
     apply in_join4_r.
     assert (Hmir : in_store3 (mir_yz s) vx (- vy) (- vz)) by (apply in_mir_yz; exact Hin).
-    assert (Hsmir : sol vx (- vy) (- vz)).
+    assert (Hsmir : is_fdiv_asn vx (- vy) (- vz)).
     { split; [lia | ]. rewrite Hq. rewrite Z.div_opp_opp by lia. reflexivity. }
     pose proof (fpos_sound (mir_yz s) vx (- vy) (- vz) Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_mir_yz (zfdiv_pos3 (mir_yz s)) vx (- vy) (- vz) Hp) as Hback.
@@ -732,7 +732,7 @@ Proof.
   - (* vz <= -1 : ceil(y/z) = -floor(y/(-z)) via mir_xz *)
     apply in_join4_r.
     assert (Hmir : in_store3 (mir_xz s) (- vx) vy (- vz)) by (apply in_mir_xz; exact Hin).
-    assert (Hsmir : sol (- vx) vy (- vz)).
+    assert (Hsmir : is_fdiv_asn (- vx) vy (- vz)).
     { split; [lia | ]. rewrite Hq. rewrite Z.opp_involutive. apply div_opp_num_den; lia. }
     pose proof (fpos_sound (mir_xz s) (- vx) vy (- vz) Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_mir_xz (zfdiv_pos3 (mir_xz s)) (- vx) vy (- vz) Hp) as Hb.
@@ -741,7 +741,7 @@ Proof.
   - (* vz >= 1 : ceil(y/z) = -floor((-y)/z) via mir_xy *)
     apply in_join4_l.
     assert (Hmir : in_store3 (mir_xy s) (- vx) (- vy) vz) by (apply in_mir_xy; exact Hin).
-    assert (Hsmir : sol (- vx) (- vy) vz).
+    assert (Hsmir : is_fdiv_asn (- vx) (- vy) vz).
     { split; [lia | ]. rewrite Hq. lia. }
     pose proof (fpos_sound (mir_xy s) (- vx) (- vy) vz Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_mir_xy (zfdiv_pos3 (mir_xy s)) (- vx) (- vy) vz Hp) as Hb.
@@ -761,7 +761,7 @@ Proof.
     unfold cdiv in Hq.
     apply in_join4_r.
     assert (Hmir : in_store3 (mir_xz s) (- vx) vy (- vz)) by (apply in_mir_xz; exact Hin).
-    assert (Hsmir : sol (- vx) vy (- vz)).
+    assert (Hsmir : is_fdiv_asn (- vx) vy (- vz)).
     { split; [lia | ]. rewrite Hq. rewrite Z.opp_involutive. apply div_opp_num_den; lia. }
     pose proof (fpos_sound (mir_xz s) (- vx) vy (- vz) Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_mir_xz (zfdiv_pos3 (mir_xz s)) (- vx) vy (- vz) Hp) as Hb.
@@ -894,7 +894,7 @@ Proof.
   rewrite mir_yz_invol in H2. exact H2.
 Qed.
 
-Lemma sol_mir : forall vx vy vz, sol vx vy vz -> sol vx (- vy) (- vz).
+Lemma sol_mir : forall vx vy vz, is_fdiv_asn vx vy vz -> is_fdiv_asn vx (- vy) (- vz).
 Proof.
   intros vx vy vz [Hnz Hq]. split; [lia | ].
   rewrite Z.div_opp_opp by lia. exact Hq.
@@ -971,7 +971,7 @@ Proof.
 Qed.
 
 Lemma fwit_in_t : forall s t vz vy,
-  slice_contains sol s t -> 1 <= vz -> mem3 (sz3 s) vz -> mem3 (sy3 s) vy ->
+  slice_contains is_fdiv_asn s t -> 1 <= vz -> mem3 (sz3 s) vz -> mem3 (sy3 s) vy ->
   zle (fyminZ (lo3 (sx3 s)) vz) (Fin vy) -> zle (Fin vy) (fymaxZ (hi3 (sx3 s)) vz) ->
   mem3 (sx3 t) (vy / vz) /\ mem3 (sy3 t) vy /\ mem3 (sz3 t) vz.
 Proof.
@@ -980,7 +980,7 @@ Proof.
   { split; [ split | split; [exact Hmy | exact Hmz]].
     - apply fdiv_ge; [exact Hvz1 | exact Hb1].
     - apply fdiv_le; [exact Hvz1 | exact Hb2]. }
-  assert (Hsol : sol (vy / vz) vy vz) by (split; [lia | reflexivity]).
+  assert (Hsol : is_fdiv_asn (vy / vz) vy vz) by (split; [lia | reflexivity]).
   exact (Hct _ _ _ Hin Hsol Hvz1).
 Qed.
 
@@ -1227,7 +1227,7 @@ Qed.
 
 Theorem fpos_ne_feasible : forall s,
   nonempty3b (sx3 s) = true -> nonempty3b (sy3 s) = true ->
-  ne_store3 (zfdiv_pos3 s) = true -> slice_feasible sol s.
+  ne_store3 (zfdiv_pos3 s) = true -> slice_feasible is_fdiv_asn s.
 Proof.
   intros s Hx Hy Hne.
   destruct (zfpos3_band s Hx Hy Hne) as [vz [Hvz1 [Hmz [Hb1 Hb2]]]].
@@ -1262,8 +1262,8 @@ Proof.
   - split; [ split; [lia | reflexivity] | exact Hvz1 ].
 Qed.
 
-Theorem fpos_best : forall s, slice_feasible sol s ->
-  forall t, slice_contains sol s t -> sle3 (zfdiv_pos3 s) t.
+Theorem fpos_best : forall s, slice_feasible is_fdiv_asn s ->
+  forall t, slice_contains is_fdiv_asn s t -> sle3 (zfdiv_pos3 s) t.
 Proof.
   intros s Hfeas t Hct.
   destruct Hfeas as (fx & fy & fz & Hfin & Hfts & Hfz1).
@@ -1905,7 +1905,7 @@ Qed.
 
 
 Lemma zfdiv4_best_feasible : forall s,
-  feasible3 sol s -> forall t, contains3 sol s t -> sle3 (zfdiv4 s) t.
+  feasible3 is_fdiv_asn s -> forall t, contains3 is_fdiv_asn s t -> sle3 (zfdiv4 s) t.
 Proof.
   intros s Hf t Hct.
   destruct Hf as (fx & fy & fz & Hfin & Hfsol).
@@ -1961,13 +1961,13 @@ Proof.
   rewrite mir_xy_invol in H2. exact H2.
 Qed.
 
-Lemma csol_of_sol_xy : forall vx vy vz, sol vx vy vz -> csol (- vx) (- vy) vz.
+Lemma csol_of_sol_xy : forall vx vy vz, is_fdiv_asn vx vy vz -> csol (- vx) (- vy) vz.
 Proof.
   intros vx vy vz [Hnz Hq]. split; [lia | ].
   unfold cdiv. rewrite Z.opp_involutive. lia.
 Qed.
 
-Lemma csol_of_sol_xz : forall vx vy vz, sol vx vy vz -> csol (- vx) vy (- vz).
+Lemma csol_of_sol_xz : forall vx vy vz, is_fdiv_asn vx vy vz -> csol (- vx) vy (- vz).
 Proof.
   intros vx vy vz [Hnz Hq]. split; [lia | ].
   unfold cdiv. rewrite Z.div_opp_opp by lia. lia.
@@ -2016,13 +2016,13 @@ Proof.
 Qed.
 
 (* ---- euclidean/floor solution correspondence ---- *)
-Lemma esol_of_sol_pos : forall vx vy vz, sol vx vy vz -> 0 < vz -> esol vx vy vz.
+Lemma esol_of_sol_pos : forall vx vy vz, is_fdiv_asn vx vy vz -> 0 < vz -> esol vx vy vz.
 Proof.
   intros vx vy vz [Hnz Hq] Hpos. split; [lia | ].
   rewrite (proj2 (Z.ltb_lt 0 vz) Hpos). exact Hq.
 Qed.
 
-Lemma esol_of_sol_xz_neg : forall vx vy vz, sol vx vy vz -> 0 < vz -> esol (- vx) vy (- vz).
+Lemma esol_of_sol_xz_neg : forall vx vy vz, is_fdiv_asn vx vy vz -> 0 < vz -> esol (- vx) vy (- vz).
 Proof.
   intros vx vy vz Hsol Hpos. destruct (csol_of_sol_xz vx vy vz Hsol) as [Hnz Hq].
   split; [lia | ]. rewrite (proj2 (Z.ltb_ge 0 (- vz)) ltac:(lia)). exact Hq.
@@ -2063,7 +2063,7 @@ Qed.
    (contrapositive: no solution in s => the output is empty = bottom) *)
 
 Theorem zfdiv4_ne_feasible : forall s,
-  ne_store3 (zfdiv4 s) = true -> feasible3 sol s.
+  ne_store3 (zfdiv4 s) = true -> feasible3 is_fdiv_asn s.
 Proof.
   intros s Hne. unfold zfdiv4 in Hne.
   destruct (ne_store3 s) eqn:Es; [ | cbn in Hne; congruence ].
@@ -2132,7 +2132,7 @@ Qed.
         under the quotient order an empty output is bottom (below every [t]);
         a non-empty one is feasible (via ne-feasibility), so [_best_feasible]
         applies. *)
-Theorem zfdiv4_complete : forall s t, contains3 sol s t -> sle3 (zfdiv4 s) t.
+Theorem zfdiv4_complete : forall s t, contains3 is_fdiv_asn s t -> sle3 (zfdiv4 s) t.
 Proof.
   intros s t Hct. destruct (ne_store3 (zfdiv4 s)) eqn:E;
     [ exact (zfdiv4_best_feasible s (zfdiv4_ne_feasible s E) t Hct) | apply sle3_bot; exact E ].
@@ -2165,12 +2165,12 @@ Qed.
 
 (* Truncated *)
 Theorem zfdiv4_reductive : forall s, sle3 (zfdiv4 s) s.
-Proof. exact (proj1 (closure_laws sol zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible)). Qed.
+Proof. exact (proj1 (closure_laws is_fdiv_asn zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible)). Qed.
 Theorem zfdiv4_monotone : forall s t, sle3 s t -> sle3 (zfdiv4 s) (zfdiv4 t).
-Proof. exact (proj1 (proj2 (closure_laws sol zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible))). Qed.
+Proof. exact (proj1 (proj2 (closure_laws is_fdiv_asn zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible))). Qed.
 Theorem zfdiv4_idempotent : forall s,
   sle3 (zfdiv4 (zfdiv4 s)) (zfdiv4 s) /\ sle3 (zfdiv4 s) (zfdiv4 (zfdiv4 s)).
-Proof. exact (proj2 (proj2 (closure_laws sol zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible))). Qed.
+Proof. exact (proj2 (proj2 (closure_laws is_fdiv_asn zfdiv4 zfdiv4_soundness (fun s _ => zfdiv4_complete s) zfdiv4_ne_feasible))). Qed.
 
 (* Ceiling *)
 Theorem zcdiv4_reductive : forall s, sle3 (zcdiv4 s) s.
@@ -2221,25 +2221,25 @@ Definition ztdivq (s : store3) : store3 :=
 Lemma quot_eq_div : forall b c, 0 <= b -> 0 < c -> Z.quot b c = Z.div b c.
 Proof. intros; apply Z.quot_div_nonneg; lia. Qed.
 
-(* tsol at a point => sol on the (mirrored) positive slice. *)
-Lemma tsol_q1 : forall x y z, tsol x y z -> 0 <= y -> 0 < z -> sol x y z.
+(* tsol at a point => is_fdiv_asn on the (mirrored) positive slice. *)
+Lemma tsol_q1 : forall x y z, tsol x y z -> 0 <= y -> 0 < z -> is_fdiv_asn x y z.
 Proof. intros x y z [Hnz Hq] Hy Hz. split; [exact Hnz | rewrite Hq; apply quot_eq_div; lia]. Qed.
 
-Lemma tsol_q2 : forall x y z, tsol x y z -> 0 <= y -> z < 0 -> sol (- x) y (- z).
+Lemma tsol_q2 : forall x y z, tsol x y z -> 0 <= y -> z < 0 -> is_fdiv_asn (- x) y (- z).
 Proof.
   intros x y z [Hnz Hq] Hy Hz. split; [lia | ].
   rewrite <- (quot_eq_div y (- z)) by lia.
   rewrite Z.quot_opp_r by lia. rewrite <- Hq. reflexivity.
 Qed.
 
-Lemma tsol_q3 : forall x y z, tsol x y z -> y <= 0 -> 0 < z -> sol (- x) (- y) z.
+Lemma tsol_q3 : forall x y z, tsol x y z -> y <= 0 -> 0 < z -> is_fdiv_asn (- x) (- y) z.
 Proof.
   intros x y z [Hnz Hq] Hy Hz. split; [lia | ].
   rewrite <- (quot_eq_div (- y) z) by lia.
   rewrite Z.quot_opp_l by lia. rewrite <- Hq. reflexivity.
 Qed.
 
-Lemma tsol_q4 : forall x y z, tsol x y z -> y <= 0 -> z < 0 -> sol x (- y) (- z).
+Lemma tsol_q4 : forall x y z, tsol x y z -> y <= 0 -> z < 0 -> is_fdiv_asn x (- y) (- z).
 Proof.
   intros x y z [Hnz Hq] Hy Hz. split; [lia | ].
   rewrite <- (quot_eq_div (- y) (- z)) by lia.
@@ -2247,25 +2247,25 @@ Proof.
   rewrite <- Hq. lia.
 Qed.
 
-(* sol on the (mirrored) positive slice => tsol at the original point. *)
-Lemma sol_q1 : forall a b c, sol a b c -> 0 <= b -> 1 <= c -> tsol a b c.
+(* is_fdiv_asn on the (mirrored) positive slice => tsol at the original point. *)
+Lemma sol_q1 : forall a b c, is_fdiv_asn a b c -> 0 <= b -> 1 <= c -> tsol a b c.
 Proof. intros a b c [Hnz Hd] Hb Hc. split; [lia | rewrite Hd; symmetry; apply quot_eq_div; lia]. Qed.
 
-Lemma sol_q2 : forall a b c, sol a b c -> 0 <= b -> 1 <= c -> tsol (- a) b (- c).
+Lemma sol_q2 : forall a b c, is_fdiv_asn a b c -> 0 <= b -> 1 <= c -> tsol (- a) b (- c).
 Proof.
   intros a b c [Hnz Hd] Hb Hc. split; [lia | ].
   rewrite Z.quot_opp_r by lia. rewrite (quot_eq_div b c) by lia.
   rewrite <- Hd. reflexivity.
 Qed.
 
-Lemma sol_q3 : forall a b c, sol a b c -> 0 <= b -> 1 <= c -> tsol (- a) (- b) c.
+Lemma sol_q3 : forall a b c, is_fdiv_asn a b c -> 0 <= b -> 1 <= c -> tsol (- a) (- b) c.
 Proof.
   intros a b c [Hnz Hd] Hb Hc. split; [lia | ].
   rewrite Z.quot_opp_l by lia. rewrite (quot_eq_div b c) by lia.
   rewrite <- Hd. reflexivity.
 Qed.
 
-Lemma sol_q4 : forall a b c, sol a b c -> 0 <= b -> 1 <= c -> tsol a (- b) (- c).
+Lemma sol_q4 : forall a b c, is_fdiv_asn a b c -> 0 <= b -> 1 <= c -> tsol a (- b) (- c).
 Proof.
   intros a b c [Hnz Hd] Hb Hc. split; [lia | ].
   rewrite Z.quot_opp_l by lia. rewrite Z.quot_opp_r by lia.

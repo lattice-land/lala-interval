@@ -1,8 +1,6 @@
 From Stdlib Require Import ZArith Lia Bool.
 Open Scope Z_scope.
-From LalaInterval Require Import Lemmas.
-
-
+From LalaInterval Require Import Concrete Lemmas.
 
 (* ------------------------------------------------------------------ *)
 (** ** Z with infinities                                                *)

@@ -15,7 +15,7 @@
     is extensionally the SAME function as [imul3]. *)
 
 From Stdlib Require Import ZArith Bool Lia.
-From LalaInterval Require Import inf Lemmas itv zdiv.
+From LalaInterval Require Import Concrete inf Lemmas itv zdiv.
 Open Scope Z_scope.
 
 (* ================================================================== *)

@@ -17,7 +17,7 @@
       - completeness/singleton : [zmul3_singleton_complete] *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import inf Lemmas itv zadd.
+From LalaInterval Require Import Concrete inf Lemmas itv zadd.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
@@ -294,6 +294,21 @@ Proof.
     apply Z.ltb_lt in Hs; lia.
 Qed.
 
+(** Bound lemmas for [cdiv] with positive divisor (mirror of the [Z.div] ones). *)
+Lemma cdiv_ub : forall n b q, 0 < b -> n <= b * q -> cdiv n b <= q.
+Proof.
+  intros n b q Hb H. unfold cdiv.
+  assert (- q <= (- n) / b) by (apply Z.div_le_lower_bound; [lia| nia]).
+  lia.
+Qed.
+
+Lemma cdiv_ub_neg : forall n M q, M < 0 -> M * q <= n -> cdiv n M <= q.
+Proof.
+  intros n M q HM H. unfold cdiv.
+  pose proof (Z.div_mod (- n) M ltac:(lia)) as D.
+  pose proof (Z.mod_neg_bound (- n) M HM) as B. nia.
+Qed.
+
 (* division-back soundness on exact quotients, sign-definite divisor *)
 Lemma div_back3_sound : forall ix ib vx vb vq,
   mem3 ix vx -> mem3 ib vb -> sgndefb ib = true -> vx = vq * vb ->
@@ -439,6 +454,41 @@ Qed.
 (** ** Monotonicity: corner lemmas, then each step, composed           *)
 (* ------------------------------------------------------------------ *)
 
+Lemma div_bracket_pos : forall y z,
+  0 < z ->
+  z * (y / z) <= y <= z * (y / z + 1) - 1.
+Proof.
+  intros y z Hz.
+  assert (Hz' : z <> 0) by lia.
+  pose proof (Z.div_mod y z Hz') as Hdm.
+  pose proof (Z.mod_pos_bound y z Hz) as Hmod.
+  nia.
+Qed.
+
+(** Monotonicity of [Z.div] in the numerator, positive and negative divisor. *)
+Lemma div_le_mono_num : forall a b c, 0 < c -> a <= b -> a / c <= b / c.
+Proof. intros a b c Hc Hab; apply Z.div_le_mono; assumption. Qed.
+
+(** Divisor monotonicity for a *non-positive* numerator (the case
+    [Z.div_le_compat_l] does not cover): [p<=0], [0<q<=r] give [p/q <= p/r]. *)
+Lemma div_le_compat_l_neg : forall p q r, p <= 0 -> 0 < q <= r -> p / q <= p / r.
+Proof.
+  intros p q r Hp [Hq Hqr].
+  assert (Hr : 0 < r) by lia.
+  destruct (div_bracket_pos p r Hr) as [Hlo Hup].
+  assert (p / q < p / r + 1) by (apply Z.div_lt_upper_bound; [nia| nia]).
+  nia.
+Qed.
+
+(** Negative-divisor bound lemmas, proved uniformly from [Z.div_mod] +
+    [Z.mod_neg_bound] + [nia].  [M < 0] throughout. *)
+Lemma fdiv_ub_neg : forall n M q, M < 0 -> M * q <= n -> n / M <= q.
+Proof.
+  intros n M q HM H. pose proof (Z.div_mod n M ltac:(lia)) as D.
+  pose proof (Z.mod_neg_bound n M HM) as B.
+  nia.
+Qed.
+
 (* --- Finite arithmetic cores --- *)
 Lemma zmul_min_lb : forall x c v d, c <= v -> v <= d -> Z.min (x*c) (x*d) <= x*v.
 Proof.
@@ -493,6 +543,14 @@ Proof. intros. unfold cdiv. pose proof (fdiv_den_max_neg (-n) mc m md ltac:(lia)
 
 Lemma fdiv_mono_pos : forall a b m, 0 < m -> a <= b -> a / m <= b / m.
 Proof. intros; apply Z.div_le_mono; lia. Qed.
+
+Lemma div_le_mono_num_neg : forall a b c, c < 0 -> a <= b -> b / c <= a / c.
+Proof.
+  intros a b c Hc Hab.
+  rewrite <- (Z.div_opp_opp a c) by lia.
+  rewrite <- (Z.div_opp_opp b c) by lia.
+  apply Z.div_le_mono; lia.
+Qed.
 
 Lemma fdiv_anti_neg : forall a b m, m < 0 -> a <= b -> b / m <= a / m.
 Proof. intros; apply div_le_mono_num_neg; lia. Qed.
