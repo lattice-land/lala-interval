@@ -1,6 +1,6 @@
 -R . LalaInterval
 Concrete.v
-inf.v
+Zinf.v
 itv.v
 itv_lattice.v
 store_lattice.v

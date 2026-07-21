@@ -1,7 +1,7 @@
 (** * store_lattice.v : the general store (X -> I)/~ is a COMPLETE LATTICE.
 
     Generalising [store3] (the fixed 3-variable store) to an arbitrary index
-    type [V] of variables: a store is a total map [V -> itv3].  As in the
+    type [V] of variables: a store is a total map [V -> itv].  As in the
     paper's \mathbf{I} = (X -> \widetilde{I})/~_I, all FAILED stores (some
     variable empty) are identified with bottom; this is modelled by the order
     [sle] carrying the [~ ne_store] disjunct, so equality is up to [seq].
@@ -19,7 +19,7 @@ Open Scope Z_scope.
 Section StoreLattice.
 Context {V : Type}.
 
-Definition store := V -> itv3.
+Definition store := V -> itv.
 
 (* concretization: an assignment [rho] is in [s] iff pointwise in range. *)
 Definition in_store (s : store) (rho : V -> Z) : Prop := forall x, mem3 (s x) (rho x).

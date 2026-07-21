@@ -667,7 +667,7 @@ CUDA INLINE constexpr VT isub(VT a, VT b) {
 
 // Saturating addition of a small finite shift (the +-1 of the band formulas).
 template<class VT>
-CUDA INLINE constexpr VT sadd(VT a, VT b) {
+CUDA INLINE constexpr VT zadd_k(VT a, VT b) {
   return (a == INF || a == NINF) ? a : a + b;
 }
 
@@ -1060,8 +1060,8 @@ CUDA INLINE constexpr void zfdiv3(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<
     else if(x.l != VT{0}) { z.l.meet(idiv_c<VT>(y.u, x.l)); }
     else if(y.u < VT{0}) { z.meet_bot(); }
     // B: (x.u + 1) * z >= y.l + 1
-    if(x.u > VT{-1}) { z.l.meet(idiv_c<VT>(sadd<VT>(y.l, VT{1}), sadd<VT>(x.u, VT{1}))); }
-    else if(x.u != VT{-1}) { z.u.meet(idiv_f<VT>(sadd<VT>(y.l, VT{1}), sadd<VT>(x.u, VT{1}))); }
+    if(x.u > VT{-1}) { z.l.meet(idiv_c<VT>(zadd_k<VT>(y.l, VT{1}), zadd_k<VT>(x.u, VT{1}))); }
+    else if(x.u != VT{-1}) { z.u.meet(idiv_f<VT>(zadd_k<VT>(y.l, VT{1}), zadd_k<VT>(x.u, VT{1}))); }
     else if(y.l >= VT{0}) { z.meet_bot(); }
     if(z.is_bot()) { goto negz; }
 
@@ -1084,8 +1084,8 @@ negz:
     else if(x2.l != VT{0}) { z2.u.meet(idiv_f<VT>(y.l, x2.l)); }
     else if(y.l > VT{0}) { z2.meet_bot(); }
     // B: (x2.u + 1) * z2 <= y.u - 1
-    if(x2.u > VT{-1}) { z2.u.meet(idiv_f<VT>(sadd<VT>(y.u, VT{-1}), sadd<VT>(x2.u, VT{1}))); }
-    else if(x2.u != VT{-1}) { z2.l.meet(idiv_c<VT>(sadd<VT>(y.u, VT{-1}), sadd<VT>(x2.u, VT{1}))); }
+    if(x2.u > VT{-1}) { z2.u.meet(idiv_f<VT>(zadd_k<VT>(y.u, VT{-1}), zadd_k<VT>(x2.u, VT{1}))); }
+    else if(x2.u != VT{-1}) { z2.l.meet(idiv_c<VT>(zadd_k<VT>(y.u, VT{-1}), zadd_k<VT>(x2.u, VT{1}))); }
     else if(y.u <= VT{0}) { z2.meet_bot(); }
     if(z2.is_bot()) { goto join; }
 
@@ -1106,11 +1106,11 @@ join:
 
   // NUM (y.fdiv_num(x, z);)
   y.l.meet(min(min<VT>(imul<VT>(x.l, z.l), imul<VT>(x.l, z.u)),
-               min<VT>(sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.l), VT{1}),
-                       sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.u), VT{1}))));
+               min<VT>(zadd_k<VT>(imul<VT>(zadd_k<VT>(x.u, VT{1}), z.l), VT{1}),
+                       zadd_k<VT>(imul<VT>(zadd_k<VT>(x.u, VT{1}), z.u), VT{1}))));
   y.u.meet(max(max<VT>(imul<VT>(x.l, z.l), imul<VT>(x.l, z.u)),
-               max<VT>(sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.l), VT{-1}),
-                       sadd<VT>(imul<VT>(sadd<VT>(x.u, VT{1}), z.u), VT{-1}))));
+               max<VT>(zadd_k<VT>(imul<VT>(zadd_k<VT>(x.u, VT{1}), z.l), VT{-1}),
+                       zadd_k<VT>(imul<VT>(zadd_k<VT>(x.u, VT{1}), z.u), VT{-1}))));
 }
 
 template<class VT>
@@ -1265,7 +1265,7 @@ namespace tell {
       trunc(y/z) = -trunc(y/(-z))        floor(y/z) = floor((-y)/(-z))
       ceil(y/z)  = -floor((-y)/z)        ceil(y/z)  = -floor(y/(-z))
     applied by mirroring the intervals of x, y and/or z.  Every corner
-    computation goes through the infinity-aware helpers (imul, sadd,
+    computation goes through the infinity-aware helpers (imul, zadd_k,
     idiv_*), so unbounded intervals refine exactly as much as bounded ones
     would in the limit.  Only the copies needed to join the two slices are
     used. */
@@ -1291,9 +1291,9 @@ CUDA INLINE constexpr void ztdiv_pos(ZInterval<VT>& x, ZInterval<VT>& y, ZInterv
 
   // Z: tymin(x.lb, z) <= y.ub
   if(x.lb() > VT{0}) { z.ub().meet(idiv_f<VT>(y.ub(), x.lb())); } // x.lb * z <= y.ub
-  else { z.lb().meet(idiv_c<VT>(sadd<VT>(y.ub(), VT{-1}), sadd<VT>(x.lb(), VT{-1}))); } // (x.lb - 1) * z <= y.ub - 1
+  else { z.lb().meet(idiv_c<VT>(zadd_k<VT>(y.ub(), VT{-1}), zadd_k<VT>(x.lb(), VT{-1}))); } // (x.lb - 1) * z <= y.ub - 1
   // Z: tymax(x.ub, z) >= y.lb
-  if(x.ub() >= VT{0}) { z.lb().meet(idiv_c<VT>(sadd<VT>(y.lb(), VT{1}), sadd<VT>(x.ub(), VT{1}))); } // (x.ub + 1) * z >= y.lb + 1
+  if(x.ub() >= VT{0}) { z.lb().meet(idiv_c<VT>(zadd_k<VT>(y.lb(), VT{1}), zadd_k<VT>(x.ub(), VT{1}))); } // (x.ub + 1) * z >= y.lb + 1
   else { z.ub().meet(idiv_f<VT>(y.lb(), x.ub())); } // x.ub * z >= y.lb
   if(z.is_bot()) { return; }
 
@@ -1302,12 +1302,12 @@ CUDA INLINE constexpr void ztdiv_pos(ZInterval<VT>& x, ZInterval<VT>& y, ZInterv
     y.lb().meet(min(imul<VT>(x.lb(), z.lb()), imul<VT>(x.lb(), z.ub())));
   }
   else {
-    y.lb().meet(min(sadd<VT>(imul<VT>(sadd<VT>(x.lb(), VT{-1}), z.lb()), VT{1}),
-                    sadd<VT>(imul<VT>(sadd<VT>(x.lb(), VT{-1}), z.ub()), VT{1})));
+    y.lb().meet(min(zadd_k<VT>(imul<VT>(zadd_k<VT>(x.lb(), VT{-1}), z.lb()), VT{1}),
+                    zadd_k<VT>(imul<VT>(zadd_k<VT>(x.lb(), VT{-1}), z.ub()), VT{1})));
   }
   if(x.ub() >= VT{0}) {
-    y.ub().meet(max(sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.lb()), VT{-1}),
-                    sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.ub()), VT{-1})));
+    y.ub().meet(max(zadd_k<VT>(imul<VT>(zadd_k<VT>(x.ub(), VT{1}), z.lb()), VT{-1}),
+                    zadd_k<VT>(imul<VT>(zadd_k<VT>(x.ub(), VT{1}), z.ub()), VT{-1})));
   }
   else {
     y.ub().meet(max(imul<VT>(x.ub(), z.lb()), imul<VT>(x.ub(), z.ub())));
@@ -1337,15 +1337,15 @@ CUDA INLINE constexpr void zfdiv_pos(ZInterval<VT>& x, ZInterval<VT>& y, ZInterv
   else if(x.lb() != VT{0}) { z.lb().meet(idiv_c<VT>(y.ub(), x.lb())); }
   else if(y.ub() < VT{0}) { z.meet_bot(); }
   // Z: (x.ub + 1) * z >= y.lb + 1
-  if(x.ub() > VT{-1}) { z.lb().meet(idiv_c<VT>(sadd<VT>(y.lb(), VT{1}), sadd<VT>(x.ub(), VT{1}))); }
-  else if(x.ub() != VT{-1}) { z.ub().meet(idiv_f<VT>(sadd<VT>(y.lb(), VT{1}), sadd<VT>(x.ub(), VT{1}))); }
+  if(x.ub() > VT{-1}) { z.lb().meet(idiv_c<VT>(zadd_k<VT>(y.lb(), VT{1}), zadd_k<VT>(x.ub(), VT{1}))); }
+  else if(x.ub() != VT{-1}) { z.ub().meet(idiv_f<VT>(zadd_k<VT>(y.lb(), VT{1}), zadd_k<VT>(x.ub(), VT{1}))); }
   else if(y.lb() >= VT{0}) { z.meet_bot(); }
   if(z.is_bot()) { return; }
 
   // Y: hull of [x.lb*z, (x.ub+1)*z - 1] over the narrowed z.
   y.lb().meet(min(imul<VT>(x.lb(), z.lb()), imul<VT>(x.lb(), z.ub())));
-  y.ub().meet(max(sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.lb()), VT{-1}),
-                  sadd<VT>(imul<VT>(sadd<VT>(x.ub(), VT{1}), z.ub()), VT{-1})));
+  y.ub().meet(max(zadd_k<VT>(imul<VT>(zadd_k<VT>(x.ub(), VT{1}), z.lb()), VT{-1}),
+                  zadd_k<VT>(imul<VT>(zadd_k<VT>(x.ub(), VT{1}), z.ub()), VT{-1})));
   if(y.is_bot()) { return; }
 
   // X: 4-corner hull of fdiv(y, z).
@@ -1547,7 +1547,7 @@ CUDA INLINE constexpr void ztmod(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<V
 
   // Direct remainder bounds: sign(x) = sign(y), |x| <= |z|-1 and |x| <= |y|.
   const VT zabs = max<VT>(ineg<VT>(z.lb()), z.ub());     // max |z|  (z.lb <= z.ub)
-  const VT rb   = sadd<VT>(zabs, VT{-1});                // |x| <= |z| - 1
+  const VT rb   = zadd_k<VT>(zabs, VT{-1});                // |x| <= |z| - 1
   x.ub().meet(y.ub() <= VT{0} ? VT{0} : min<VT>(y.ub(), rb));
   x.lb().meet(y.lb() >= VT{0} ? VT{0} : max<VT>(y.lb(), ineg<VT>(rb)));
   if(x.is_bot()) { return; }

@@ -11,7 +11,7 @@
     ternarization identity that justifies the composed part. *)
 
 From Stdlib Require Import ZArith Lia.
-From LalaInterval Require Import inf itv zadd zmul.
+From LalaInterval Require Import Zinf itv zadd zmul.
 Open Scope Z_scope.
 
 (* truncated-modulus solution relation: x = y rem z with z <> 0. *)
@@ -50,22 +50,22 @@ Qed.
 (* ------------------------------------------------------------------ *)
 
 (* Upper bound on |v| for any v in an interval, over Zinf (infinity-aware). *)
-Definition zabs_ub (i : itv3) : Zinf := zmax (zneg3 (lo3 i)) (hi3 i).
+Definition zabs_ub (i : itv) : Zinf := max_zinf (isneg_zinf3 (lb i)) (ub i).
 
-Lemma zabs_ub_sound : forall i v, mem3 i v -> zle (Fin (Z.abs v)) (zabs_ub i).
+Lemma zabs_ub_sound : forall i v, mem3 i v -> leq_zinf (Fin (Z.abs v)) (zabs_ub i).
 Proof.
   intros i v [Hlo Hhi]. unfold zabs_ub.
-  assert (E : Fin (Z.abs v) = zmax (zneg3 (Fin v)) (Fin v)) by (cbn; f_equal; lia).
-  rewrite E. apply zmax_mono; [ apply zneg3_anti; exact Hlo | exact Hhi ].
+  assert (E : Fin (Z.abs v) = max_zinf (isneg_zinf3 (Fin v)) (Fin v)) by (cbn; f_equal; lia).
+  rewrite E. apply max_zinf_mono; [ apply isneg_zinf3_anti; exact Hlo | exact Hhi ].
 Qed.
 
 (* The remainder envelope for [x] given [y] and [z]:
      lower = max( min(lo y, 0),  -(|z|_max - 1) )     upper = min( max(hi y, 0),  |z|_max - 1 )
    combining the sign bound (x has y's sign, |x| <= |y|) with the magnitude
    bound (|x| <= |z| - 1). *)
-Definition tmod_env (sy sz : itv3) : itv3 :=
-  Itv3 (zmax (zmin (lo3 sy) (Fin 0)) (iadd3 (zneg3 (zabs_ub sz)) (Fin 1)))
-       (zmin (zmax (hi3 sy) (Fin 0)) (isub3 (zabs_ub sz) (Fin 1))).
+Definition tmod_env (sy sz : itv) : itv :=
+  Itv (max_zinf (min_zinf (lb sy) (Fin 0)) (iadd3 (isneg_zinf3 (zabs_ub sz)) (Fin 1)))
+       (min_zinf (max_zinf (ub sy) (Fin 0)) (isub3 (zabs_ub sz) (Fin 1))).
 
 Lemma mem3_tmod_env : forall sy sz vy vz,
   vz <> 0 -> mem3 sy vy -> mem3 sz vz -> mem3 (tmod_env sy sz) (Z.rem vy vz).
@@ -73,30 +73,30 @@ Proof.
   intros sy sz vy vz Hz [Hylo Hyhi] Hsz.
   pose proof (zabs_ub_sound sz vz Hsz) as Hzabs.
   pose proof (Z.rem_bound_abs vy vz Hz) as Hra.
-  assert (Hmagu : zle (Fin (Z.rem vy vz)) (isub3 (zabs_ub sz) (Fin 1))).
-  { apply (zle_trans _ (Fin (Z.abs vz - 1))).
+  assert (Hmagu : leq_zinf (Fin (Z.rem vy vz)) (isub3 (zabs_ub sz) (Fin 1))).
+  { apply (leq_zinf_trans _ (Fin (Z.abs vz - 1))).
     - cbn; lia.
     - assert (E : Fin (Z.abs vz - 1) = isub3 (Fin (Z.abs vz)) (Fin 1)) by (cbn; f_equal; lia).
-      rewrite E. apply isub3_mono; [ exact Hzabs | apply zle_refl ]. }
-  assert (Hmagl : zle (iadd3 (zneg3 (zabs_ub sz)) (Fin 1)) (Fin (Z.rem vy vz))).
-  { apply (zle_trans _ (Fin (- Z.abs vz + 1))).
-    - assert (E : Fin (- Z.abs vz + 1) = iadd3 (zneg3 (Fin (Z.abs vz))) (Fin 1)) by (cbn; f_equal; lia).
-      rewrite E. apply iadd3_mono; [ apply zneg3_anti; exact Hzabs | apply zle_refl ].
+      rewrite E. apply isub3_mono; [ exact Hzabs | apply leq_zinf_refl ]. }
+  assert (Hmagl : leq_zinf (iadd3 (isneg_zinf3 (zabs_ub sz)) (Fin 1)) (Fin (Z.rem vy vz))).
+  { apply (leq_zinf_trans _ (Fin (- Z.abs vz + 1))).
+    - assert (E : Fin (- Z.abs vz + 1) = iadd3 (isneg_zinf3 (Fin (Z.abs vz))) (Fin 1)) by (cbn; f_equal; lia).
+      rewrite E. apply iadd3_mono; [ apply isneg_zinf3_anti; exact Hzabs | apply leq_zinf_refl ].
     - cbn; lia. }
   split.
-  - unfold tmod_env; cbn [lo3]. apply zmax_lub; [ | exact Hmagl ].
+  - unfold tmod_env; cbn [lb]. apply max_zinf_lub; [ | exact Hmagl ].
     destruct (Z.le_gt_cases vy 0) as [Hy|Hy].
-    + apply (zle_trans _ (lo3 sy)); [ apply zle_zmin_l | ].
-      apply (zle_trans _ (Fin vy)); [ exact Hylo | ].
+    + apply (leq_zinf_trans _ (lb sy)); [ apply leq_zinf_min_zinf_l | ].
+      apply (leq_zinf_trans _ (Fin vy)); [ exact Hylo | ].
       cbn. pose proof (rem_ge_dividend vy vz Hz Hy). lia.
-    + apply (zle_trans _ (Fin 0)); [ apply zmin_zle_r | ].
+    + apply (leq_zinf_trans _ (Fin 0)); [ apply min_zinf_leq_zinf_r | ].
       cbn. pose proof (Z.rem_nonneg vy vz Hz ltac:(lia)). lia.
-  - unfold tmod_env; cbn [hi3]. apply zle_zmin_glb; [ | exact Hmagu ].
+  - unfold tmod_env; cbn [ub]. apply leq_zinf_min_zinf_glb; [ | exact Hmagu ].
     destruct (Z.le_gt_cases 0 vy) as [Hy|Hy].
-    + apply (zle_trans _ (hi3 sy)); [ | apply zle_zmax_l ].
-      apply (zle_trans _ (Fin vy)); [ | exact Hyhi ].
+    + apply (leq_zinf_trans _ (ub sy)); [ | apply leq_zinf_max_zinf_l ].
+      apply (leq_zinf_trans _ (Fin vy)); [ | exact Hyhi ].
       cbn. pose proof (rem_le_dividend vy vz Hz Hy). lia.
-    + apply (zle_trans _ (Fin 0)); [ | apply zle_zmax_r ].
+    + apply (leq_zinf_trans _ (Fin 0)); [ | apply leq_zinf_max_zinf_r ].
       cbn. pose proof (Z.rem_nonpos vy vz Hz ltac:(lia)). lia.
 Qed.
 

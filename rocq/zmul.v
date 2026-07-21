@@ -17,43 +17,43 @@
       - completeness/singleton : [zmul3_singleton_complete] *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import Concrete inf Lemmas itv zadd.
+From LalaInterval Require Import Concrete Zinf itv zadd.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
 (** ** Auxiliary operations (mirror the C++)                           *)
 (* ------------------------------------------------------------------ *)
 
-Definition zneg3 (a : Zinf) : Zinf :=
+Definition isneg_zinf3 (a : Zinf) : Zinf :=
   match a with Fin v => Fin (- v) | Pinf => Ninf | Ninf => Pinf end.
 
 (* neq_zero: shave a zero bound *)
-Definition neqz3 (i : itv3) : itv3 :=
-  Itv3 (if ziszero (lo3 i) then Fin 1 else lo3 i)
-       (if ziszero (hi3 i) then Fin (-1) else hi3 i).
+Definition neqz3 (i : itv) : itv :=
+  Itv (if iszero_zinf (lb i) then Fin 1 else lb i)
+       (if iszero_zinf (ub i) then Fin (-1) else ub i).
 
 (* 4-corner product hull *)
-Definition mul_hull3 (iy iz : itv3) : itv3 :=
-  Itv3 (zmin (zmin (imul3 (lo3 iy) (lo3 iz)) (imul3 (lo3 iy) (hi3 iz)))
-             (zmin (imul3 (hi3 iy) (lo3 iz)) (imul3 (hi3 iy) (hi3 iz))))
-       (zmax (zmax (imul3 (lo3 iy) (lo3 iz)) (imul3 (lo3 iy) (hi3 iz)))
-             (zmax (imul3 (hi3 iy) (lo3 iz)) (imul3 (hi3 iy) (hi3 iz)))).
+Definition mul_hull3 (iy iz : itv) : itv :=
+  Itv (min_zinf (min_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
+             (min_zinf (mul_zinf (ub iy) (lb iz)) (mul_zinf (ub iy) (ub iz))))
+       (max_zinf (max_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
+             (max_zinf (mul_zinf (ub iy) (lb iz)) (mul_zinf (ub iy) (ub iz)))).
 
 (* division-back corner hull (sound for EXACT quotients: y = x / z on
    solutions); only used on sign-definite ib *)
-Definition div_back3 (ix ib : itv3) : itv3 :=
-  Itv3 (zmin (zmin (idivc3 (lo3 ix) (lo3 ib)) (idivc3 (lo3 ix) (hi3 ib)))
-             (zmin (idivc3 (hi3 ix) (lo3 ib)) (idivc3 (hi3 ix) (hi3 ib))))
-       (zmax (zmax (idivf3 (lo3 ix) (lo3 ib)) (idivf3 (lo3 ix) (hi3 ib)))
-             (zmax (idivf3 (hi3 ix) (lo3 ib)) (idivf3 (hi3 ix) (hi3 ib)))).
+Definition div_back3 (ix ib : itv) : itv :=
+  Itv (min_zinf (min_zinf (cdiv_zinf (lb ix) (lb ib)) (cdiv_zinf (lb ix) (ub ib)))
+             (min_zinf (cdiv_zinf (ub ix) (lb ib)) (cdiv_zinf (ub ix) (ub ib))))
+       (max_zinf (max_zinf (fdiv_zinf (lb ix) (lb ib)) (fdiv_zinf (lb ix) (ub ib)))
+             (max_zinf (fdiv_zinf (ub ix) (lb ib)) (fdiv_zinf (ub ix) (ub ib)))).
 
 (* |target| <= |x| window (used when the co-factor straddles 0 but 0 notin x,
    so the co-factor is a non-zero integer: |b| >= 1) *)
-Definition absb3 (ix : itv3) : itv3 :=
-  Itv3 (zmin (lo3 ix) (zneg3 (hi3 ix))) (zmax (zneg3 (lo3 ix)) (hi3 ix)).
+Definition absb3 (ix : itv) : itv :=
+  Itv (min_zinf (lb ix) (isneg_zinf3 (ub ix))) (max_zinf (isneg_zinf3 (lb ix)) (ub ix)).
 
-Definition sgndefb (i : itv3) : bool := (zpos (lo3 i) || zneg (hi3 i))%bool.
-Definition xnzb (i : itv3) : bool := sgndefb i.
+Definition sgndefb (i : itv) : bool := (ispos_zinf (lb i) || isneg_zinf (ub i))%bool.
+Definition xnzb (i : itv) : bool := sgndefb i.
 
 (* ------------------------------------------------------------------ *)
 (** ** The propagator (mirrors zmul3)                                  *)
@@ -143,7 +143,7 @@ Proof. intros f g Hf Hg s t Hst. apply Hg, Hf, Hst. Qed.
 (* the zero-shave only moves bounds inward *)
 Lemma neqz3_ile3 : forall i, ile3 (neqz3 i) i.
 Proof.
-  intros [l u]; apply ile3_intro; cbn [lo3 hi3].
+  intros [l u]; apply ile3_intro; cbn [lb ub].
   - destruct l as [v| |]; cbn; try easy.
     destruct (v =? 0) eqn:E; cbn; [apply Z.eqb_eq in E|]; lia.
   - destruct u as [v| |]; cbn; try easy.
@@ -181,39 +181,39 @@ Qed.
 (** ** Soundness: corner lemmas, then each step, composed              *)
 (* ------------------------------------------------------------------ *)
 
-Lemma zmin_zle_r3 : forall a b, zle (zmin a b) b.
+Lemma min_zinf_leq_zinf_r3 : forall a b, leq_zinf (min_zinf a b) b.
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
-Lemma zmax_zle_r3 : forall a b, zle b (zmax a b).
+Lemma max_zinf_leq_zinf_r3 : forall a b, leq_zinf b (max_zinf a b).
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
 (* the 4-corner min is below any element that one corner is below *)
-Lemma zle_zmin4 : forall m1 m2 m3 m4 t,
-  zle m1 t \/ zle m2 t \/ zle m3 t \/ zle m4 t ->
-  zle (zmin (zmin m1 m2) (zmin m3 m4)) t.
+Lemma leq_zinf_min_zinf4 : forall m1 m2 m3 m4 t,
+  leq_zinf m1 t \/ leq_zinf m2 t \/ leq_zinf m3 t \/ leq_zinf m4 t ->
+  leq_zinf (min_zinf (min_zinf m1 m2) (min_zinf m3 m4)) t.
 Proof.
   intros m1 m2 m3 m4 t [H|[H|[H|H]]].
-  - eapply zle_trans; [apply zle_zmin_l|]. eapply zle_trans; [apply zle_zmin_l|]. exact H.
-  - eapply zle_trans; [apply zle_zmin_l|]. eapply zle_trans; [apply zmin_zle_r3|]. exact H.
-  - eapply zle_trans; [apply zmin_zle_r3|]. eapply zle_trans; [apply zle_zmin_l|]. exact H.
-  - eapply zle_trans; [apply zmin_zle_r3|]. eapply zle_trans; [apply zmin_zle_r3|]. exact H.
+  - eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. exact H.
+  - eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r3|]. exact H.
+  - eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r3|]. eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. exact H.
+  - eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r3|]. eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r3|]. exact H.
 Qed.
 
-Lemma zle_zmax4 : forall m1 m2 m3 m4 t,
-  zle t m1 \/ zle t m2 \/ zle t m3 \/ zle t m4 ->
-  zle t (zmax (zmax m1 m2) (zmax m3 m4)).
+Lemma leq_zinf_max_zinf4 : forall m1 m2 m3 m4 t,
+  leq_zinf t m1 \/ leq_zinf t m2 \/ leq_zinf t m3 \/ leq_zinf t m4 ->
+  leq_zinf t (max_zinf (max_zinf m1 m2) (max_zinf m3 m4)).
 Proof.
   intros m1 m2 m3 m4 t [H|[H|[H|H]]].
-  - eapply zle_trans; [exact H|]. eapply zle_trans; [apply zle_zmax_l|]. apply zle_zmax_l.
-  - eapply zle_trans; [exact H|]. eapply zle_trans; [apply zmax_zle_r3|]. apply zle_zmax_l.
-  - eapply zle_trans; [exact H|]. eapply zle_trans; [apply zle_zmax_l|]. apply zmax_zle_r3.
-  - eapply zle_trans; [exact H|]. eapply zle_trans; [apply zmax_zle_r3|]. apply zmax_zle_r3.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply leq_zinf_max_zinf_l|]. apply leq_zinf_max_zinf_l.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply max_zinf_leq_zinf_r3|]. apply leq_zinf_max_zinf_l.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply leq_zinf_max_zinf_l|]. apply max_zinf_leq_zinf_r3.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply max_zinf_leq_zinf_r3|]. apply max_zinf_leq_zinf_r3.
 Qed.
 
 (* stage 1: collapse the second factor's interval onto the point vz *)
-Lemma imul3_z_lb : forall A lz hz vz,
-  zle lz (Fin vz) -> zle (Fin vz) hz ->
-  zle (zmin (imul3 A lz) (imul3 A hz)) (imul3 A (Fin vz)).
+Lemma mul_zinf_z_lb : forall A lz hz vz,
+  leq_zinf lz (Fin vz) -> leq_zinf (Fin vz) hz ->
+  leq_zinf (min_zinf (mul_zinf A lz) (mul_zinf A hz)) (mul_zinf A (Fin vz)).
 Proof.
   intros [a| |] [c| |] [d| |] vz Hc Hd; cbn in *; try easy;
   repeat (match goal with
@@ -223,9 +223,9 @@ Proof.
   try (destruct (Z.le_gt_cases 0 a); nia).
 Qed.
 
-Lemma imul3_z_ub : forall A lz hz vz,
-  zle lz (Fin vz) -> zle (Fin vz) hz ->
-  zle (imul3 A (Fin vz)) (zmax (imul3 A lz) (imul3 A hz)).
+Lemma mul_zinf_z_ub : forall A lz hz vz,
+  leq_zinf lz (Fin vz) -> leq_zinf (Fin vz) hz ->
+  leq_zinf (mul_zinf A (Fin vz)) (max_zinf (mul_zinf A lz) (mul_zinf A hz)).
 Proof.
   intros [a| |] [c| |] [d| |] vz Hc Hd; cbn in *; try easy;
   repeat (match goal with
@@ -236,9 +236,9 @@ Proof.
 Qed.
 
 (* stage 2: collapse the first factor's interval onto the point vy *)
-Lemma imul3_point_lb : forall ly hy vy vz,
-  zle ly (Fin vy) -> zle (Fin vy) hy ->
-  zle (zmin (imul3 ly (Fin vz)) (imul3 hy (Fin vz))) (Fin (vy * vz)).
+Lemma mul_zinf_point_lb : forall ly hy vy vz,
+  leq_zinf ly (Fin vy) -> leq_zinf (Fin vy) hy ->
+  leq_zinf (min_zinf (mul_zinf ly (Fin vz)) (mul_zinf hy (Fin vz))) (Fin (vy * vz)).
 Proof.
   intros [a| |] [b| |] vy vz Ha Hb; cbn in *; try easy;
   repeat (match goal with
@@ -248,9 +248,9 @@ Proof.
   try (destruct (Z.le_gt_cases 0 vz); nia).
 Qed.
 
-Lemma imul3_point_ub : forall ly hy vy vz,
-  zle ly (Fin vy) -> zle (Fin vy) hy ->
-  zle (Fin (vy * vz)) (zmax (imul3 ly (Fin vz)) (imul3 hy (Fin vz))).
+Lemma mul_zinf_point_ub : forall ly hy vy vz,
+  leq_zinf ly (Fin vy) -> leq_zinf (Fin vy) hy ->
+  leq_zinf (Fin (vy * vz)) (max_zinf (mul_zinf ly (Fin vz)) (mul_zinf hy (Fin vz))).
 Proof.
   intros [a| |] [b| |] vy vz Ha Hb; cbn in *; try easy;
   repeat (match goal with
@@ -263,20 +263,20 @@ Qed.
 Lemma mul_hull3_sound : forall iy iz vy vz,
   mem3 iy vy -> mem3 iz vz -> mem3 (mul_hull3 iy iz) (vy * vz).
 Proof.
-  intros [ly hy] [lz hz] vy vz [Hy1 Hy2] [Hz1 Hz2]; cbn [lo3 hi3] in *.
-  unfold mul_hull3, mem3; cbn [lo3 hi3].
+  intros [ly hy] [lz hz] vy vz [Hy1 Hy2] [Hz1 Hz2]; cbn [lb ub] in *.
+  unfold mul_hull3, mem3; cbn [lb ub].
   split.
-  - apply zle_trans with (b := zmin (imul3 ly (Fin vz)) (imul3 hy (Fin vz))).
-    + apply zmin_mono; apply imul3_z_lb; assumption.
-    + apply imul3_point_lb; assumption.
-  - apply zle_trans with (b := zmax (imul3 ly (Fin vz)) (imul3 hy (Fin vz))).
-    + apply imul3_point_ub; assumption.
-    + apply zmax_mono; apply imul3_z_ub; assumption.
+  - apply leq_zinf_trans with (b := min_zinf (mul_zinf ly (Fin vz)) (mul_zinf hy (Fin vz))).
+    + apply min_zinf_mono; apply mul_zinf_z_lb; assumption.
+    + apply mul_zinf_point_lb; assumption.
+  - apply leq_zinf_trans with (b := max_zinf (mul_zinf ly (Fin vz)) (mul_zinf hy (Fin vz))).
+    + apply mul_zinf_point_ub; assumption.
+    + apply max_zinf_mono; apply mul_zinf_z_ub; assumption.
 Qed.
 
 Lemma neqz3_sound : forall i v, mem3 i v -> v <> 0 -> mem3 (neqz3 i) v.
 Proof.
-  intros [l u] v [H1 H2] Hv; unfold neqz3, mem3 in *; cbn [lo3 hi3] in *; split.
+  intros [l u] v [H1 H2] Hv; unfold neqz3, mem3 in *; cbn [lb ub] in *; split.
   - destruct l as [a| |]; cbn in *; try easy.
     destruct (Z.eqb_spec a 0); cbn; lia.
   - destruct u as [b| |]; cbn in *; try easy.
@@ -286,7 +286,7 @@ Qed.
 (* a sign-definite interval contains only strictly-signed values *)
 Lemma sgndefb_sign : forall i v, sgndefb i = true -> mem3 i v -> v < 0 \/ 0 < v.
 Proof.
-  intros [l u] v Hs [H1 H2]; unfold sgndefb in Hs; cbn [lo3 hi3] in *.
+  intros [l u] v Hs [H1 H2]; unfold sgndefb in Hs; cbn [lb ub] in *.
   apply Bool.orb_true_iff in Hs; destruct Hs as [Hs|Hs].
   - destruct l as [a| |]; cbn in *; try easy.
     apply Z.ltb_lt in Hs; lia.
@@ -314,15 +314,15 @@ Lemma div_back3_sound : forall ix ib vx vb vq,
   mem3 ix vx -> mem3 ib vb -> sgndefb ib = true -> vx = vq * vb ->
   mem3 (div_back3 ix ib) vq.
 Proof.
-  intros [lx hx] [lb hb] vx vb vq [Hx1 Hx2] [Hb1 Hb2] Hsgn Heq.
-  unfold sgndefb in Hsgn; cbn [lo3 hi3] in *.
+  intros [lx hx] [llb hb] vx vb vq [Hx1 Hx2] [Hb1 Hb2] Hsgn Heq.
+  unfold sgndefb in Hsgn; cbn [lb ub] in *.
   apply Bool.orb_true_iff in Hsgn.
-  unfold div_back3, mem3; cbn [lo3 hi3].
+  unfold div_back3, mem3; cbn [lb ub].
   destruct Hsgn as [Hp|Hn].
-  - destruct lb as [l| |]; cbn in Hb1, Hp; [|destruct Hb1|discriminate].
+  - destruct llb as [l| |]; cbn in Hb1, Hp; [|destruct Hb1|discriminate].
     apply Z.ltb_lt in Hp.
     split.
-    + apply zle_zmin4.
+    + apply leq_zinf_min_zinf4.
       destruct lx as [a| |]; cbn in Hx1;
         [|destruct Hx1
          |left; cbn; destruct (Z.ltb_spec 0 l); [exact I|lia]].
@@ -332,7 +332,7 @@ Proof.
         -- cbn. apply cdiv_ub; nia.
         -- destruct (Z.ltb_spec 0 a); cbn; nia.
       * left. cbn. apply cdiv_ub; nia.
-    + apply zle_zmax4.
+    + apply leq_zinf_max_zinf4.
       destruct hx as [B| |]; cbn in Hx2;
         [|right; right; left; cbn; destruct (Z.ltb_spec 0 l); [exact I|lia]
          |destruct Hx2].
@@ -345,24 +345,24 @@ Proof.
   - destruct hb as [u| |]; cbn in Hb2, Hn; [|discriminate|destruct Hb2].
     apply Z.ltb_lt in Hn.
     split.
-    + apply zle_zmin4.
+    + apply leq_zinf_min_zinf4.
       destruct hx as [B| |]; cbn in Hx2;
         [|right; right; right; cbn; destruct (Z.ltb_spec 0 u); [lia|exact I]
          |destruct Hx2].
       destruct (Z.le_gt_cases vq 0) as [Hq|Hq].
       * right; right; right. cbn. apply cdiv_ub_neg; nia.
       * right; right; left.
-        destruct lb as [l| |]; cbn in Hb1; [|destruct Hb1|cbn].
+        destruct llb as [l| |]; cbn in Hb1; [|destruct Hb1|cbn].
         -- cbn. apply cdiv_ub_neg; nia.
         -- destruct (Z.ltb_spec B 0); cbn; lia.
-    + apply zle_zmax4.
+    + apply leq_zinf_max_zinf4.
       destruct lx as [a| |]; cbn in Hx1;
         [|destruct Hx1
          |right; left; cbn; destruct (Z.ltb_spec 0 u); [lia|exact I]].
       destruct (Z.le_gt_cases 0 vq) as [Hq|Hq].
       * right; left. cbn. apply fdiv_lb_neg; nia.
       * left.
-        destruct lb as [l| |]; cbn in Hb1; [|destruct Hb1|cbn].
+        destruct llb as [l| |]; cbn in Hb1; [|destruct Hb1|cbn].
         -- cbn. apply fdiv_lb_neg; nia.
         -- destruct (Z.ltb_spec 0 a); cbn; lia.
 Qed.
@@ -371,8 +371,8 @@ Qed.
 Lemma absb3_sound : forall ix vx vb vq,
   mem3 ix vx -> vx = vq * vb -> vb <> 0 -> mem3 (absb3 ix) vq.
 Proof.
-  intros [lx hx] vx vb vq [H1 H2] Heq Hb; cbn [lo3 hi3] in *.
-  unfold absb3, mem3, zneg3; cbn [lo3 hi3].
+  intros [lx hx] vx vb vq [H1 H2] Heq Hb; cbn [lb ub] in *.
+  unfold absb3, mem3, isneg_zinf3; cbn [lb ub].
   assert (Hd : vb <= -1 \/ 1 <= vb) by lia.
   split.
   - destruct lx as [a| |]; destruct hx as [B| |]; cbn in *; try easy;
@@ -618,7 +618,7 @@ Lemma cdiv_abs_lb : forall n m, m <> 0 -> Z.min n (- n) <= cdiv n m.
 Proof. intros. unfold cdiv. pose proof (fdiv_abs_ub (-n) m H). lia. Qed.
 
 (* --- Zinf order / sign utilities --- *)
-Lemma ne_lo_le_hi : forall i, nonempty3b i = true -> zle (lo3 i) (hi3 i).
+Lemma ne_lo_le_hi : forall i, nonempty3b i = true -> leq_zinf (lb i) (ub i).
 Proof. intros [[a| |] [b| |]]; cbn; try easy. intro H; apply Z.leb_le in H; lia. Qed.
 
 Lemma ne_ile3 : forall i j, ile3 i j -> nonempty3b i = true -> nonempty3b j = true.
@@ -645,8 +645,8 @@ Proof.
   try easy; bsolve.
 Qed.
 
-Lemma sgn_mem : forall i w, sgndefb i = true -> zle (lo3 i) w -> zle w (hi3 i) ->
-  (zpos w || zneg w)%bool = true.
+Lemma sgn_mem : forall i w, sgndefb i = true -> leq_zinf (lb i) w -> leq_zinf w (ub i) ->
+  (ispos_zinf w || isneg_zinf w)%bool = true.
 Proof.
   intros [[c| |] [d| |]] [w| |] Hs Hl Hh; unfold sgndefb in *; cbn in *; try easy; bsolve.
 Qed.
@@ -665,7 +665,7 @@ Proof.
   intros i j Hij. destruct (nonempty3b i) eqn:Ei;
     [ | apply ile3_bot; apply neqz3_empty; exact Ei ].
   apply (ile3_ne_inv i j Ei) in Hij as [Hl Hh].
-  destruct i as [li ui], j as [lj uj]; unfold neqz3; apply ile3_intro; cbn [lo3 hi3] in *.
+  destruct i as [li ui], j as [lj uj]; unfold neqz3; apply ile3_intro; cbn [lb ub] in *.
   - destruct lj as [x| |], li as [y| |]; cbn in *; try easy;
     repeat match goal with |- context[?v =? 0] => destruct (Z.eqb_spec v 0) end; cbn; try easy; lia.
   - destruct ui as [x| |], uj as [y| |]; cbn in *; try easy;
@@ -682,19 +682,19 @@ Proof.
     + assumption.
 Qed.
 
-Lemma zneg3_anti : forall a b, zle a b -> zle (zneg3 b) (zneg3 a).
+Lemma isneg_zinf3_anti : forall a b, leq_zinf a b -> leq_zinf (isneg_zinf3 b) (isneg_zinf3 a).
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
 (* absb3 does NOT preserve emptiness, so monotonicity is guarded by ne on the source *)
 Lemma absb3_mono : forall i j, nonempty3b i = true -> ile3 i j -> ile3 (absb3 i) (absb3 j).
 Proof.
   intros i j Hne Hij. apply (ile3_ne_inv i j Hne) in Hij as [Hl Hh].
-  apply ile3_intro; cbn [lo3 hi3].
-  - apply zmin_mono; [assumption|apply zneg3_anti; assumption].
-  - apply zmax_mono; [apply zneg3_anti; assumption|assumption].
+  apply ile3_intro; cbn [lb ub].
+  - apply min_zinf_mono; [assumption|apply isneg_zinf3_anti; assumption].
+  - apply max_zinf_mono; [apply isneg_zinf3_anti; assumption|assumption].
 Qed.
 
-Lemma imul3_comm : forall a b, imul3 a b = imul3 b a.
+Lemma mul_zinf_comm : forall a b, mul_zinf a b = mul_zinf b a.
 Proof. intros [x| |] [y| |]; cbn; try reflexivity. f_equal; ring. Qed.
 
 Ltac zif :=
@@ -712,50 +712,50 @@ Ltac bconv :=
     | H : false = true |- _ => discriminate H
     end.
 
-Lemma imul3_min_lb : forall a c v d, zle c v -> zle v d ->
-  zle (zmin (imul3 a c) (imul3 a d)) (imul3 a v).
+Lemma mul_zinf_min_lb : forall a c v d, leq_zinf c v -> leq_zinf v d ->
+  leq_zinf (min_zinf (mul_zinf a c) (mul_zinf a d)) (mul_zinf a v).
 Proof.
   intros [x| |] [cc| |] [vv| |] [dd| |] H1 H2; cbn in *; try easy; zif;
   try easy; try (apply zmul_min_lb; lia); try lia; try nia.
 Qed.
 
-Lemma imul3_max_ub : forall a c v d, zle c v -> zle v d ->
-  zle (imul3 a v) (zmax (imul3 a c) (imul3 a d)).
+Lemma mul_zinf_max_ub : forall a c v d, leq_zinf c v -> leq_zinf v d ->
+  leq_zinf (mul_zinf a v) (max_zinf (mul_zinf a c) (mul_zinf a d)).
 Proof.
   intros [x| |] [cc| |] [vv| |] [dd| |] H1 H2; cbn in *; try easy; zif;
   try easy; try (apply zmul_max_ub; lia); try lia; try nia.
 Qed.
 
 Lemma mul_hull3_lb : forall i j u v,
-  zle (lo3 i) u -> zle u (hi3 i) -> zle (lo3 j) v -> zle v (hi3 j) ->
-  zle (zmin (zmin (imul3 (lo3 i) (lo3 j)) (imul3 (lo3 i) (hi3 j)))
-            (zmin (imul3 (hi3 i) (lo3 j)) (imul3 (hi3 i) (hi3 j))))
-      (imul3 u v).
+  leq_zinf (lb i) u -> leq_zinf u (ub i) -> leq_zinf (lb j) v -> leq_zinf v (ub j) ->
+  leq_zinf (min_zinf (min_zinf (mul_zinf (lb i) (lb j)) (mul_zinf (lb i) (ub j)))
+            (min_zinf (mul_zinf (ub i) (lb j)) (mul_zinf (ub i) (ub j))))
+      (mul_zinf u v).
 Proof.
   intros i j u v Hu1 Hu2 Hv1 Hv2.
-  apply zle_trans with (zmin (imul3 (lo3 i) v) (imul3 (hi3 i) v)).
-  - apply zle_zmin_glb.
-    + eapply zle_trans; [apply zmin_zle_l | apply imul3_min_lb; assumption].
-    + eapply zle_trans; [apply zmin_zle_r | apply imul3_min_lb; assumption].
-  - rewrite (imul3_comm (lo3 i) v), (imul3_comm (hi3 i) v), (imul3_comm u v).
-    apply imul3_min_lb; assumption.
+  apply leq_zinf_trans with (min_zinf (mul_zinf (lb i) v) (mul_zinf (ub i) v)).
+  - apply leq_zinf_min_zinf_glb.
+    + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_l | apply mul_zinf_min_lb; assumption].
+    + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r | apply mul_zinf_min_lb; assumption].
+  - rewrite (mul_zinf_comm (lb i) v), (mul_zinf_comm (ub i) v), (mul_zinf_comm u v).
+    apply mul_zinf_min_lb; assumption.
 Qed.
 
 Lemma mul_hull3_ub : forall i j u v,
-  zle (lo3 i) u -> zle u (hi3 i) -> zle (lo3 j) v -> zle v (hi3 j) ->
-  zle (imul3 u v)
-      (zmax (zmax (imul3 (lo3 i) (lo3 j)) (imul3 (lo3 i) (hi3 j)))
-            (zmax (imul3 (hi3 i) (lo3 j)) (imul3 (hi3 i) (hi3 j)))).
+  leq_zinf (lb i) u -> leq_zinf u (ub i) -> leq_zinf (lb j) v -> leq_zinf v (ub j) ->
+  leq_zinf (mul_zinf u v)
+      (max_zinf (max_zinf (mul_zinf (lb i) (lb j)) (mul_zinf (lb i) (ub j)))
+            (max_zinf (mul_zinf (ub i) (lb j)) (mul_zinf (ub i) (ub j)))).
 Proof.
   intros i j u v Hu1 Hu2 Hv1 Hv2.
-  apply zle_trans with (zmax (imul3 (lo3 i) v) (imul3 (hi3 i) v)).
-  - rewrite (imul3_comm (lo3 i) v), (imul3_comm (hi3 i) v), (imul3_comm u v).
-    apply imul3_max_ub; assumption.
-  - apply zmax_lub.
-    + apply zle_trans with (zmax (imul3 (lo3 i) (lo3 j)) (imul3 (lo3 i) (hi3 j)));
-        [ apply imul3_max_ub; assumption | apply zle_zmax_l ].
-    + apply zle_trans with (zmax (imul3 (hi3 i) (lo3 j)) (imul3 (hi3 i) (hi3 j)));
-        [ apply imul3_max_ub; assumption | apply zle_zmax_r ].
+  apply leq_zinf_trans with (max_zinf (mul_zinf (lb i) v) (mul_zinf (ub i) v)).
+  - rewrite (mul_zinf_comm (lb i) v), (mul_zinf_comm (ub i) v), (mul_zinf_comm u v).
+    apply mul_zinf_max_ub; assumption.
+  - apply max_zinf_lub.
+    + apply leq_zinf_trans with (max_zinf (mul_zinf (lb i) (lb j)) (mul_zinf (lb i) (ub j)));
+        [ apply mul_zinf_max_ub; assumption | apply leq_zinf_max_zinf_l ].
+    + apply leq_zinf_trans with (max_zinf (mul_zinf (ub i) (lb j)) (mul_zinf (ub i) (ub j)));
+        [ apply mul_zinf_max_ub; assumption | apply leq_zinf_max_zinf_r ].
 Qed.
 
 Lemma mul_hull3_mono_ne : forall i i' j j',
@@ -766,55 +766,55 @@ Proof.
   apply (ile3_ne_inv i i' Hnei) in Hii' as [Hli Hhi].
   apply (ile3_ne_inv j j' Hnej) in Hjj' as [Hlj Hhj].
   pose proof (ne_lo_le_hi _ Hnei) as Hilh. pose proof (ne_lo_le_hi _ Hnej) as Hjlh.
-  assert (Ma2 : zle (lo3 i) (hi3 i')) by (eapply zle_trans; eassumption).
-  assert (Mb1 : zle (lo3 i') (hi3 i)) by (eapply zle_trans; eassumption).
-  assert (Mc2 : zle (lo3 j) (hi3 j')) by (eapply zle_trans; eassumption).
-  assert (Md1 : zle (lo3 j') (hi3 j)) by (eapply zle_trans; eassumption).
-  apply ile3_intro; unfold mul_hull3; cbn [lo3 hi3].
-  - apply zle_zmin_glb; apply zle_zmin_glb; apply mul_hull3_lb; assumption.
-  - apply zmax_lub; apply zmax_lub; apply mul_hull3_ub; assumption.
+  assert (Ma2 : leq_zinf (lb i) (ub i')) by (eapply leq_zinf_trans; eassumption).
+  assert (Mb1 : leq_zinf (lb i') (ub i)) by (eapply leq_zinf_trans; eassumption).
+  assert (Mc2 : leq_zinf (lb j) (ub j')) by (eapply leq_zinf_trans; eassumption).
+  assert (Md1 : leq_zinf (lb j') (ub j)) by (eapply leq_zinf_trans; eassumption).
+  apply ile3_intro; unfold mul_hull3; cbn [lb ub].
+  - apply leq_zinf_min_zinf_glb; apply leq_zinf_min_zinf_glb; apply mul_hull3_lb; assumption.
+  - apply max_zinf_lub; apply max_zinf_lub; apply mul_hull3_ub; assumption.
 Qed.
 
 (* --- Division corner lemmas --- *)
-Lemma idivc3_num_lb : forall a u b w, (zpos w || zneg w)%bool = true ->
-  zle a u -> zle u b -> zle (zmin (idivc3 a w) (idivc3 b w)) (idivc3 u w).
+Lemma cdiv_zinf_num_lb : forall a u b w, (ispos_zinf w || isneg_zinf w)%bool = true ->
+  leq_zinf a u -> leq_zinf u b -> leq_zinf (min_zinf (cdiv_zinf a w) (cdiv_zinf b w)) (cdiv_zinf u w).
 Proof.
   intros [av| |] [uv| |] [bv| |] [m| |] Hw H1 H2; cbn in *; try easy; bconv; zif;
   try easy; try lia; try (apply cdiv_num_min; lia); try (apply cdiv_mono_pos; lia); try (apply cdiv_anti_neg; lia).
 Qed.
 
-Lemma idivf3_num_ub : forall a u b w, (zpos w || zneg w)%bool = true ->
-  zle a u -> zle u b -> zle (idivf3 u w) (zmax (idivf3 a w) (idivf3 b w)).
+Lemma fdiv_zinf_num_ub : forall a u b w, (ispos_zinf w || isneg_zinf w)%bool = true ->
+  leq_zinf a u -> leq_zinf u b -> leq_zinf (fdiv_zinf u w) (max_zinf (fdiv_zinf a w) (fdiv_zinf b w)).
 Proof.
   intros [av| |] [uv| |] [bv| |] [m| |] Hw H1 H2; cbn in *; try easy; bconv; zif;
   try easy; try lia; try (apply fdiv_num_max; lia); try (apply fdiv_mono_pos; lia); try (apply fdiv_anti_neg; lia).
 Qed.
 
-Lemma idivc3_den_lb : forall n c w d, (zpos c || zneg d)%bool = true ->
-  zle c w -> zle w d -> zle (zmin (idivc3 n c) (idivc3 n d)) (idivc3 n w).
+Lemma cdiv_zinf_den_lb : forall n c w d, (ispos_zinf c || isneg_zinf d)%bool = true ->
+  leq_zinf c w -> leq_zinf w d -> leq_zinf (min_zinf (cdiv_zinf n c) (cdiv_zinf n d)) (cdiv_zinf n w).
 Proof.
   intros [nv| |] [cv| |] [wv| |] [dv| |] Hs H1 H2; cbn in *; try easy; bconv;
   try (apply cdiv_den_min_pos; lia); try (apply cdiv_den_min_neg; lia);
   try (apply cdiv_den_pinf_pos; lia); try (apply cdiv_den_ninf_neg; lia); zif; try easy; try lia.
 Qed.
 
-Lemma idivf3_den_ub : forall n c w d, (zpos c || zneg d)%bool = true ->
-  zle c w -> zle w d -> zle (idivf3 n w) (zmax (idivf3 n c) (idivf3 n d)).
+Lemma fdiv_zinf_den_ub : forall n c w d, (ispos_zinf c || isneg_zinf d)%bool = true ->
+  leq_zinf c w -> leq_zinf w d -> leq_zinf (fdiv_zinf n w) (max_zinf (fdiv_zinf n c) (fdiv_zinf n d)).
 Proof.
   intros [nv| |] [cv| |] [wv| |] [dv| |] Hs H1 H2; cbn in *; try easy; bconv;
   try (apply fdiv_den_max_pos; lia); try (apply fdiv_den_max_neg; lia);
   try (apply fdiv_den_pinf_pos; lia); try (apply fdiv_den_ninf_neg; lia); zif; try easy; try lia.
 Qed.
 
-Lemma idivc3_abs_lb : forall xl xu u w, (zpos w || zneg w)%bool = true ->
-  zle xl u -> zle u xu -> zle (zmin xl (zneg3 xu)) (idivc3 u w).
+Lemma cdiv_zinf_abs_lb : forall xl xu u w, (ispos_zinf w || isneg_zinf w)%bool = true ->
+  leq_zinf xl u -> leq_zinf u xu -> leq_zinf (min_zinf xl (isneg_zinf3 xu)) (cdiv_zinf u w).
 Proof.
   intros [lv| |] [rv| |] [uv| |] [m| |] Hw H1 H2; cbn in *; try easy; bconv; zif;
   try easy; try lia; try (match goal with |- context[cdiv ?v ?mm] => pose proof (cdiv_abs_lb v mm ltac:(lia)) end; lia).
 Qed.
 
-Lemma idivf3_abs_ub : forall xl xu u w, (zpos w || zneg w)%bool = true ->
-  zle xl u -> zle u xu -> zle (idivf3 u w) (zmax (zneg3 xl) xu).
+Lemma fdiv_zinf_abs_ub : forall xl xu u w, (ispos_zinf w || isneg_zinf w)%bool = true ->
+  leq_zinf xl u -> leq_zinf u xu -> leq_zinf (fdiv_zinf u w) (max_zinf (isneg_zinf3 xl) xu).
 Proof.
   intros [lv| |] [rv| |] [uv| |] [m| |] Hw H1 H2; cbn in *; try easy; bconv; zif;
   try easy; try lia; try (match goal with |- context[?v / ?mm] => pose proof (fdiv_abs_ub v mm ltac:(lia)) end; lia).
@@ -822,35 +822,35 @@ Qed.
 
 (* --- div_back3 hull bounds and monotonicity --- *)
 Lemma div_back3_lb : forall ix' ib' u w,
-  (zpos (lo3 ib') || zneg (hi3 ib'))%bool = true ->
-  zle (lo3 ix') u -> zle u (hi3 ix') -> zle (lo3 ib') w -> zle w (hi3 ib') ->
-  zle (zmin (zmin (idivc3 (lo3 ix') (lo3 ib')) (idivc3 (lo3 ix') (hi3 ib')))
-            (zmin (idivc3 (hi3 ix') (lo3 ib')) (idivc3 (hi3 ix') (hi3 ib'))))
-      (idivc3 u w).
+  (ispos_zinf (lb ib') || isneg_zinf (ub ib'))%bool = true ->
+  leq_zinf (lb ix') u -> leq_zinf u (ub ix') -> leq_zinf (lb ib') w -> leq_zinf w (ub ib') ->
+  leq_zinf (min_zinf (min_zinf (cdiv_zinf (lb ix') (lb ib')) (cdiv_zinf (lb ix') (ub ib')))
+            (min_zinf (cdiv_zinf (ub ix') (lb ib')) (cdiv_zinf (ub ix') (ub ib'))))
+      (cdiv_zinf u w).
 Proof.
   intros ix' ib' u w Hs Hu1 Hu2 Hw1 Hw2.
-  apply zle_trans with (zmin (idivc3 (lo3 ix') w) (idivc3 (hi3 ix') w)).
-  - apply zle_zmin_glb.
-    + eapply zle_trans; [apply zmin_zle_l | apply idivc3_den_lb; assumption].
-    + eapply zle_trans; [apply zmin_zle_r | apply idivc3_den_lb; assumption].
-  - apply idivc3_num_lb; try assumption. exact (sgn_mem ib' w Hs Hw1 Hw2).
+  apply leq_zinf_trans with (min_zinf (cdiv_zinf (lb ix') w) (cdiv_zinf (ub ix') w)).
+  - apply leq_zinf_min_zinf_glb.
+    + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_l | apply cdiv_zinf_den_lb; assumption].
+    + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r | apply cdiv_zinf_den_lb; assumption].
+  - apply cdiv_zinf_num_lb; try assumption. exact (sgn_mem ib' w Hs Hw1 Hw2).
 Qed.
 
 Lemma div_back3_ub : forall ix' ib' u w,
-  (zpos (lo3 ib') || zneg (hi3 ib'))%bool = true ->
-  zle (lo3 ix') u -> zle u (hi3 ix') -> zle (lo3 ib') w -> zle w (hi3 ib') ->
-  zle (idivf3 u w)
-      (zmax (zmax (idivf3 (lo3 ix') (lo3 ib')) (idivf3 (lo3 ix') (hi3 ib')))
-            (zmax (idivf3 (hi3 ix') (lo3 ib')) (idivf3 (hi3 ix') (hi3 ib')))).
+  (ispos_zinf (lb ib') || isneg_zinf (ub ib'))%bool = true ->
+  leq_zinf (lb ix') u -> leq_zinf u (ub ix') -> leq_zinf (lb ib') w -> leq_zinf w (ub ib') ->
+  leq_zinf (fdiv_zinf u w)
+      (max_zinf (max_zinf (fdiv_zinf (lb ix') (lb ib')) (fdiv_zinf (lb ix') (ub ib')))
+            (max_zinf (fdiv_zinf (ub ix') (lb ib')) (fdiv_zinf (ub ix') (ub ib')))).
 Proof.
   intros ix' ib' u w Hs Hu1 Hu2 Hw1 Hw2.
-  apply zle_trans with (zmax (idivf3 (lo3 ix') w) (idivf3 (hi3 ix') w)).
-  - apply idivf3_num_ub; try assumption. exact (sgn_mem ib' w Hs Hw1 Hw2).
-  - apply zmax_lub.
-    + apply zle_trans with (zmax (idivf3 (lo3 ix') (lo3 ib')) (idivf3 (lo3 ix') (hi3 ib')));
-        [ apply idivf3_den_ub; assumption | apply zle_zmax_l ].
-    + apply zle_trans with (zmax (idivf3 (hi3 ix') (lo3 ib')) (idivf3 (hi3 ix') (hi3 ib')));
-        [ apply idivf3_den_ub; assumption | apply zle_zmax_r ].
+  apply leq_zinf_trans with (max_zinf (fdiv_zinf (lb ix') w) (fdiv_zinf (ub ix') w)).
+  - apply fdiv_zinf_num_ub; try assumption. exact (sgn_mem ib' w Hs Hw1 Hw2).
+  - apply max_zinf_lub.
+    + apply leq_zinf_trans with (max_zinf (fdiv_zinf (lb ix') (lb ib')) (fdiv_zinf (lb ix') (ub ib')));
+        [ apply fdiv_zinf_den_ub; assumption | apply leq_zinf_max_zinf_l ].
+    + apply leq_zinf_trans with (max_zinf (fdiv_zinf (ub ix') (lb ib')) (fdiv_zinf (ub ix') (ub ib')));
+        [ apply fdiv_zinf_den_ub; assumption | apply leq_zinf_max_zinf_r ].
 Qed.
 
 Lemma div_back3_mono_ne : forall ix ix' ib ib',
@@ -863,13 +863,13 @@ Proof.
   apply (ile3_ne_inv ib ib' Hneb) in Hbb' as [Hbl Hbh].
   unfold sgndefb in Hs.
   pose proof (ne_lo_le_hi _ Hnex) as Hxlh. pose proof (ne_lo_le_hi _ Hneb) as Hblh.
-  assert (Ma2 : zle (lo3 ix) (hi3 ix')) by (eapply zle_trans; eassumption).
-  assert (Mb1 : zle (lo3 ix') (hi3 ix)) by (eapply zle_trans; eassumption).
-  assert (Mc2 : zle (lo3 ib) (hi3 ib')) by (eapply zle_trans; eassumption).
-  assert (Md1 : zle (lo3 ib') (hi3 ib)) by (eapply zle_trans; eassumption).
-  apply ile3_intro; unfold div_back3; cbn [lo3 hi3].
-  - apply zle_zmin_glb; apply zle_zmin_glb; apply div_back3_lb; assumption.
-  - apply zmax_lub; apply zmax_lub; apply div_back3_ub; assumption.
+  assert (Ma2 : leq_zinf (lb ix) (ub ix')) by (eapply leq_zinf_trans; eassumption).
+  assert (Mb1 : leq_zinf (lb ix') (ub ix)) by (eapply leq_zinf_trans; eassumption).
+  assert (Mc2 : leq_zinf (lb ib) (ub ib')) by (eapply leq_zinf_trans; eassumption).
+  assert (Md1 : leq_zinf (lb ib') (ub ib)) by (eapply leq_zinf_trans; eassumption).
+  apply ile3_intro; unfold div_back3; cbn [lb ub].
+  - apply leq_zinf_min_zinf_glb; apply leq_zinf_min_zinf_glb; apply div_back3_lb; assumption.
+  - apply max_zinf_lub; apply max_zinf_lub; apply div_back3_ub; assumption.
 Qed.
 
 Lemma db_sub_absb : forall ix ix' ib,
@@ -879,15 +879,15 @@ Proof.
   intros ix ix' ib Hnex Hneb Hs Hxx'.
   apply (ile3_ne_inv ix ix' Hnex) in Hxx' as [Hxl Hxh].
   pose proof (ne_lo_le_hi _ Hnex) as Hxlh. pose proof (ne_lo_le_hi _ Hneb) as Hblh.
-  assert (Ma2 : zle (lo3 ix) (hi3 ix')) by (eapply zle_trans; eassumption).
-  assert (Mb1 : zle (lo3 ix') (hi3 ix)) by (eapply zle_trans; eassumption).
-  assert (W1 : (zpos (lo3 ib) || zneg (lo3 ib))%bool = true)
-    by (apply (sgn_mem ib); [assumption | apply zle_refl | assumption]).
-  assert (W2 : (zpos (hi3 ib) || zneg (hi3 ib))%bool = true)
-    by (apply (sgn_mem ib); [assumption | assumption | apply zle_refl]).
-  apply ile3_intro; unfold div_back3, absb3; cbn [lo3 hi3].
-  - apply zle_zmin_glb; apply zle_zmin_glb; apply idivc3_abs_lb; assumption.
-  - apply zmax_lub; apply zmax_lub; apply idivf3_abs_ub; assumption.
+  assert (Ma2 : leq_zinf (lb ix) (ub ix')) by (eapply leq_zinf_trans; eassumption).
+  assert (Mb1 : leq_zinf (lb ix') (ub ix)) by (eapply leq_zinf_trans; eassumption).
+  assert (W1 : (ispos_zinf (lb ib) || isneg_zinf (lb ib))%bool = true)
+    by (apply (sgn_mem ib); [assumption | apply leq_zinf_refl | assumption]).
+  assert (W2 : (ispos_zinf (ub ib) || isneg_zinf (ub ib))%bool = true)
+    by (apply (sgn_mem ib); [assumption | assumption | apply leq_zinf_refl]).
+  apply ile3_intro; unfold div_back3, absb3; cbn [lb ub].
+  - apply leq_zinf_min_zinf_glb; apply leq_zinf_min_zinf_glb; apply cdiv_zinf_abs_lb; assumption.
+  - apply max_zinf_lub; apply max_zinf_lub; apply fdiv_zinf_abs_ub; assumption.
 Qed.
 
 (* --- the guarded back-propagation step is monotone (source non-empty) --- *)
@@ -1079,9 +1079,9 @@ Theorem zmul3_monotone : forall s t, sle3 s t -> sle3 (zmul3 s) (zmul3 t).
 Proof. intros s t Hst. rewrite !zmul3_is_pipe. apply zmul3_pipe_monotone; exact Hst. Qed.
 
 Theorem zmul3_singleton_complete : forall s vx vy vz,
-  sx3 s = Itv3 (Fin vx) (Fin vx) ->
-  sy3 s = Itv3 (Fin vy) (Fin vy) ->
-  sz3 s = Itv3 (Fin vz) (Fin vz) ->
+  sx3 s = Itv (Fin vx) (Fin vx) ->
+  sy3 s = Itv (Fin vy) (Fin vy) ->
+  sz3 s = Itv (Fin vz) (Fin vz) ->
   ne_store3 (zmul3 s) = true ->
   vx = vy * vz.
 Proof.

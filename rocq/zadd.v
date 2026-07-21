@@ -16,7 +16,7 @@
     Order is the QUOTIENTED lattice one (itv.ile3/sle3): empties = bottom. *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import inf itv.
+From LalaInterval Require Import Zinf itv.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
@@ -46,12 +46,12 @@ Definition isub3 (a b : Zinf) : Zinf :=
 (* ------------------------------------------------------------------ *)
 
 Definition zadd3 (s : store3) : store3 :=
-  let x := inter3 (sx3 s) (Itv3 (iadd3 (lo3 (sy3 s)) (lo3 (sz3 s)))
-                                (iadd3 (hi3 (sy3 s)) (hi3 (sz3 s)))) in
-  let y := inter3 (sy3 s) (Itv3 (isub3 (lo3 x) (hi3 (sz3 s)))
-                                (isub3 (hi3 x) (lo3 (sz3 s)))) in
-  let z := inter3 (sz3 s) (Itv3 (isub3 (lo3 x) (hi3 y))
-                                (isub3 (hi3 x) (lo3 y))) in
+  let x := inter3 (sx3 s) (Itv (iadd3 (lb (sy3 s)) (lb (sz3 s)))
+                                (iadd3 (ub (sy3 s)) (ub (sz3 s)))) in
+  let y := inter3 (sy3 s) (Itv (isub3 (lb x) (ub (sz3 s)))
+                                (isub3 (ub x) (lb (sz3 s)))) in
+  let z := inter3 (sz3 s) (Itv (isub3 (lb x) (ub y))
+                                (isub3 (ub x) (lb y))) in
   St3 x y z.
 
 (* ------------------------------------------------------------------ *)
@@ -59,31 +59,31 @@ Definition zadd3 (s : store3) : store3 :=
 (* ------------------------------------------------------------------ *)
 
 Lemma iadd3_ub : forall a b u v,
-  zle a (Fin u) -> zle b (Fin v) -> zle (iadd3 a b) (Fin (u + v)).
+  leq_zinf a (Fin u) -> leq_zinf b (Fin v) -> leq_zinf (iadd3 a b) (Fin (u + v)).
 Proof. intros [x| |] [y| |] u v Ha Hb; cbn in *; try easy; lia. Qed.
 
 Lemma iadd3_lb : forall a b u v,
-  zle (Fin u) a -> zle (Fin v) b -> zle (Fin (u + v)) (iadd3 a b).
+  leq_zinf (Fin u) a -> leq_zinf (Fin v) b -> leq_zinf (Fin (u + v)) (iadd3 a b).
 Proof. intros [x| |] [y| |] u v Ha Hb; cbn in *; try easy; lia. Qed.
 
 Lemma isub3_ub : forall a b u v,
-  zle a (Fin u) -> zle (Fin v) b -> zle (isub3 a b) (Fin (u - v)).
+  leq_zinf a (Fin u) -> leq_zinf (Fin v) b -> leq_zinf (isub3 a b) (Fin (u - v)).
 Proof. intros [x| |] [y| |] u v Ha Hb; cbn in *; try easy; lia. Qed.
 
 Lemma isub3_lb : forall a b u v,
-  zle (Fin u) a -> zle b (Fin v) -> zle (Fin (u - v)) (isub3 a b).
+  leq_zinf (Fin u) a -> leq_zinf b (Fin v) -> leq_zinf (Fin (u - v)) (isub3 a b).
 Proof. intros [x| |] [y| |] u v Ha Hb; cbn in *; try easy; lia. Qed.
 
-Lemma zle_refl3 : forall a, zle a a.
+Lemma leq_zinf_refl3 : forall a, leq_zinf a a.
 Proof. intros [x| |]; cbn; try easy; lia. Qed.
 
-Lemma zle_zmax_l : forall a b, zle a (zmax a b).
+Lemma leq_zinf_max_zinf_l : forall a b, leq_zinf a (max_zinf a b).
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
-Lemma zle_zmin_l : forall a b, zle (zmin a b) a.
+Lemma leq_zinf_min_zinf_l : forall a b, leq_zinf (min_zinf a b) a.
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
-(* [inter3_ile3_l] is now provided by itv3 (quotient order). *)
+(* [inter3_ile3_l] is now provided by itv (quotient order). *)
 
 Lemma mem3_inter : forall i j v, mem3 i v -> mem3 j v -> mem3 (inter3 i j) v.
 Proof.
@@ -92,10 +92,10 @@ Proof.
   - destruct ui as [x| |], uj as [y| |]; cbn in *; try easy; lia.
 Qed.
 
-Lemma zmax_mono : forall a b c d, zle a b -> zle c d -> zle (zmax a c) (zmax b d).
+Lemma max_zinf_mono : forall a b c d, leq_zinf a b -> leq_zinf c d -> leq_zinf (max_zinf a c) (max_zinf b d).
 Proof. intros [x| |] [y| |] [z| |] [w| |] H1 H2; cbn in *; try easy; lia. Qed.
 
-Lemma zmin_mono : forall a b c d, zle a b -> zle c d -> zle (zmin a c) (zmin b d).
+Lemma min_zinf_mono : forall a b c d, leq_zinf a b -> leq_zinf c d -> leq_zinf (min_zinf a c) (min_zinf b d).
 Proof. intros [x| |] [y| |] [z| |] [w| |] H1 H2; cbn in *; try easy; lia. Qed.
 
 Lemma ne_inter3_r : forall i j, nonempty3b (inter3 i j) = true -> nonempty3b j = true.
@@ -115,17 +115,17 @@ Proof.
   pose proof (ne_inter3 _ _ E) as Ei. pose proof (ne_inter3_r _ _ E) as Ej.
   apply (ile3_ne_inv i i' Ei) in Hii as [Hli Hhi].
   apply (ile3_ne_inv j j' Ej) in Hjj as [Hlj Hhj].
-  apply ile3_intro; unfold inter3; cbn [lo3 hi3].
-  - apply zmax_mono; assumption.
-  - apply zmin_mono; assumption.
+  apply ile3_intro; unfold inter3; cbn [lb ub].
+  - apply max_zinf_mono; assumption.
+  - apply min_zinf_mono; assumption.
 Qed.
 
 Lemma iadd3_mono : forall a a' b b',
-  zle a a' -> zle b b' -> zle (iadd3 a b) (iadd3 a' b').
+  leq_zinf a a' -> leq_zinf b b' -> leq_zinf (iadd3 a b) (iadd3 a' b').
 Proof. intros [x| |] [y| |] [z| |] [w| |] H1 H2; cbn in *; try easy; lia. Qed.
 
 Lemma isub3_mono : forall a a' b b',
-  zle a a' -> zle b' b -> zle (isub3 a b) (isub3 a' b').
+  leq_zinf a a' -> leq_zinf b' b -> leq_zinf (isub3 a b) (isub3 a' b').
 Proof. intros [x| |] [y| |] [z| |] [w| |] H1 H2; cbn in *; try easy; lia. Qed.
 
 (* ------------------------------------------------------------------ *)
@@ -140,24 +140,24 @@ Proof.
   destruct Hx as [Hx1 Hx2], Hy as [Hy1 Hy2], Hz as [Hz1 Hz2].
   unfold zadd3; cbv zeta.
   (* refined x contains vx *)
-  assert (HXr : mem3 (inter3 (sx3 s) (Itv3 (iadd3 (lo3 (sy3 s)) (lo3 (sz3 s)))
-                                           (iadd3 (hi3 (sy3 s)) (hi3 (sz3 s))))) vx).
-  { apply mem3_inter; [split; assumption|]. split; cbn [lo3 hi3].
+  assert (HXr : mem3 (inter3 (sx3 s) (Itv (iadd3 (lb (sy3 s)) (lb (sz3 s)))
+                                           (iadd3 (ub (sy3 s)) (ub (sz3 s))))) vx).
+  { apply mem3_inter; [split; assumption|]. split; cbn [lb ub].
     - replace vx with (vy + vz) by lia. apply iadd3_ub; assumption.
     - replace vx with (vy + vz) by lia. apply iadd3_lb; assumption. }
   destruct HXr as [HX1 HX2].
   (* refined y contains vy *)
   assert (HYr : mem3 (inter3 (sy3 s)
-     (Itv3 (isub3 (zmax (lo3 (sx3 s)) (iadd3 (lo3 (sy3 s)) (lo3 (sz3 s)))) (hi3 (sz3 s)))
-           (isub3 (zmin (hi3 (sx3 s)) (iadd3 (hi3 (sy3 s)) (hi3 (sz3 s)))) (lo3 (sz3 s))))) vy).
-  { apply mem3_inter; [split; assumption|]. split; cbn [lo3 hi3].
+     (Itv (isub3 (max_zinf (lb (sx3 s)) (iadd3 (lb (sy3 s)) (lb (sz3 s)))) (ub (sz3 s)))
+           (isub3 (min_zinf (ub (sx3 s)) (iadd3 (ub (sy3 s)) (ub (sz3 s)))) (lb (sz3 s))))) vy).
+  { apply mem3_inter; [split; assumption|]. split; cbn [lb ub].
     - replace vy with (vx - vz) by lia. apply isub3_ub; assumption.
     - replace vy with (vx - vz) by lia. apply isub3_lb; assumption. }
   split; [|split].
   - split; assumption.
   - exact HYr.
   - destruct HYr as [HY1 HY2].
-    apply mem3_inter; [split; assumption|]. split; cbn [lo3 hi3].
+    apply mem3_inter; [split; assumption|]. split; cbn [lb ub].
     + replace vz with (vx - vy) by lia. apply isub3_ub; assumption.
     + replace vz with (vx - vy) by lia. apply isub3_lb; assumption.
 Qed.
@@ -168,9 +168,9 @@ Qed.
    already give a lower closure operator. *)
 
 Theorem zadd3_singleton_complete : forall s vx vy vz,
-  sx3 s = Itv3 (Fin vx) (Fin vx) ->
-  sy3 s = Itv3 (Fin vy) (Fin vy) ->
-  sz3 s = Itv3 (Fin vz) (Fin vz) ->
+  sx3 s = Itv (Fin vx) (Fin vx) ->
+  sy3 s = Itv (Fin vy) (Fin vy) ->
+  sz3 s = Itv (Fin vz) (Fin vz) ->
   ne_store3 (zadd3 s) = true ->
   vx = vy + vz.
 Proof.
@@ -191,55 +191,55 @@ Qed.
 (* ================================================================== *)
 
 (* The addition constraint as a ternary relation.  [contains3] and
-   [feasible3] are provided generically by itv3. *)
+   [feasible3] are provided generically by itv. *)
 Definition asol (vx vy vz : Z) : Prop := vx = vy + vz.
 
 (* ---- non-emptiness / bound extraction ---- *)
-Lemma nonempty_bounds3 : forall i, nonempty3b i = true -> lo3 i <> Pinf /\ hi3 i <> Ninf.
+Lemma nonempty_bounds3 : forall i, nonempty3b i = true -> lb i <> Pinf /\ ub i <> Ninf.
 Proof.
   intros [[a| |] [b| |]]; cbn; intro H; try discriminate; split; discriminate.
 Qed.
 
-Lemma zmax_not_Pinf : forall a b, a <> Pinf -> b <> Pinf -> zmax a b <> Pinf.
+Lemma max_zinf_not_Pinf : forall a b, a <> Pinf -> b <> Pinf -> max_zinf a b <> Pinf.
 Proof. intros [a| |] [b| |] Ha Hb; cbn; congruence. Qed.
 
-Lemma zmin_not_Ninf : forall a b, a <> Ninf -> b <> Ninf -> zmin a b <> Ninf.
+Lemma min_zinf_not_Ninf : forall a b, a <> Ninf -> b <> Ninf -> min_zinf a b <> Ninf.
 Proof. intros [a| |] [b| |] Ha Hb; cbn; congruence. Qed.
 
 (* pick a finite witness inside a nonempty, top-not-Pinf/bot-not-Ninf range *)
 Definition pickf (L U : Zinf) : Z :=
   match L with Fin a => a | _ => match U with Fin b => b | _ => 0 end end.
 
-Lemma pickf_mem : forall L U, zle L U -> L <> Pinf -> U <> Ninf ->
-  zle L (Fin (pickf L U)) /\ zle (Fin (pickf L U)) U.
+Lemma pickf_mem : forall L U, leq_zinf L U -> L <> Pinf -> U <> Ninf ->
+  leq_zinf L (Fin (pickf L U)) /\ leq_zinf (Fin (pickf L U)) U.
 Proof.
   intros [a| |] [b| |] Hle HLp HUn; cbn in *; try congruence;
     split; solve [ exact I | lia ].
 Qed.
 
-Lemma zmin_zle_r : forall a b, zle (zmin a b) b.
+Lemma min_zinf_leq_zinf_r : forall a b, leq_zinf (min_zinf a b) b.
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
-Lemma zle_zmax_r : forall a b, zle b (zmax a b).
+Lemma leq_zinf_max_zinf_r : forall a b, leq_zinf b (max_zinf a b).
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
-Lemma ne_zle3 : forall i, nonempty3b i = true -> zle (lo3 i) (hi3 i).
+Lemma ne_leq_zinf3 : forall i, nonempty3b i = true -> leq_zinf (lb i) (ub i).
 Proof.
   intros [[a| |] [b| |]]; cbn; intro H; try discriminate; try exact I;
   apply Z.leb_le; exact H.
 Qed.
 
-(* ---- arithmetic bridges between [iadd3]/[isub3] and [zle] ---- *)
-Lemma add_sub_lb : forall a b x, zle (iadd3 a b) (Fin x) -> zle a (isub3 (Fin x) b).
+(* ---- arithmetic bridges between [iadd3]/[isub3] and [leq_zinf] ---- *)
+Lemma add_sub_lb : forall a b x, leq_zinf (iadd3 a b) (Fin x) -> leq_zinf a (isub3 (Fin x) b).
 Proof. intros [p| |] [q| |] x H; cbn in *; try easy; lia. Qed.
 
-Lemma add_sub_ub : forall a b x, zle (Fin x) (iadd3 a b) -> zle (isub3 (Fin x) b) a.
+Lemma add_sub_ub : forall a b x, leq_zinf (Fin x) (iadd3 a b) -> leq_zinf (isub3 (Fin x) b) a.
 Proof. intros [p| |] [q| |] x H; cbn in *; try easy; lia. Qed.
 
-Lemma sub_lb : forall c x y, zle (Fin y) (isub3 (Fin x) c) -> zle c (Fin (x - y)).
+Lemma sub_lb : forall c x y, leq_zinf (Fin y) (isub3 (Fin x) c) -> leq_zinf c (Fin (x - y)).
 Proof. intros [d| |] x y H; cbn in *; try easy; lia. Qed.
 
-Lemma sub_ub : forall c x y, zle (isub3 (Fin x) c) (Fin y) -> zle (Fin (x - y)) c.
+Lemma sub_ub : forall c x y, leq_zinf (isub3 (Fin x) c) (Fin y) -> leq_zinf (Fin (x - y)) c.
 Proof. intros [d| |] x y H; cbn in *; try easy; lia. Qed.
 
 Lemma isub3_not_Pinf : forall x c, c <> Ninf -> isub3 (Fin x) c <> Pinf.
@@ -252,71 +252,71 @@ Proof. intros x [d| |] Hc; cbn; congruence. Qed.
    intervals splits as [x = y + z] with [y], [z] members. *)
 Lemma add_decomp : forall iy iz x,
   nonempty3b iy = true -> nonempty3b iz = true ->
-  zle (iadd3 (lo3 iy) (lo3 iz)) (Fin x) -> zle (Fin x) (iadd3 (hi3 iy) (hi3 iz)) ->
+  leq_zinf (iadd3 (lb iy) (lb iz)) (Fin x) -> leq_zinf (Fin x) (iadd3 (ub iy) (ub iz)) ->
   exists y z, mem3 iy y /\ mem3 iz z /\ x = y + z.
 Proof.
   intros iy iz x Hney Hnez H1 H2.
   destruct (nonempty_bounds3 iy Hney) as [Hyl Hyh].
   destruct (nonempty_bounds3 iz Hnez) as [Hzl Hzh].
-  pose proof (ne_zle3 iy Hney) as Hyle.
-  pose proof (ne_zle3 iz Hnez) as Hzle.
-  set (yL := zmax (lo3 iy) (isub3 (Fin x) (hi3 iz))).
-  set (yU := zmin (hi3 iy) (isub3 (Fin x) (lo3 iz))).
-  assert (HLU : zle yL yU).
-  { unfold yL, yU. apply zle_zmin_glb.
-    - apply zmax_lub; [ exact Hyle | apply (add_sub_ub _ _ _ H2) ].
-    - apply zmax_lub.
+  pose proof (ne_leq_zinf3 iy Hney) as Hyle.
+  pose proof (ne_leq_zinf3 iz Hnez) as Hleq_zinf.
+  set (yL := max_zinf (lb iy) (isub3 (Fin x) (ub iz))).
+  set (yU := min_zinf (ub iy) (isub3 (Fin x) (lb iz))).
+  assert (HLU : leq_zinf yL yU).
+  { unfold yL, yU. apply leq_zinf_min_zinf_glb.
+    - apply max_zinf_lub; [ exact Hyle | apply (add_sub_ub _ _ _ H2) ].
+    - apply max_zinf_lub.
       + apply (add_sub_lb _ _ _ H1).
-      + apply isub3_mono; [ apply zle_refl | exact Hzle ]. }
+      + apply isub3_mono; [ apply leq_zinf_refl | exact Hleq_zinf ]. }
   assert (HLp : yL <> Pinf)
-    by (unfold yL; apply zmax_not_Pinf; [exact Hyl | apply isub3_not_Pinf; exact Hzh]).
+    by (unfold yL; apply max_zinf_not_Pinf; [exact Hyl | apply isub3_not_Pinf; exact Hzh]).
   assert (HUn : yU <> Ninf)
-    by (unfold yU; apply zmin_not_Ninf; [exact Hyh | apply isub3_not_Ninf; exact Hzl]).
+    by (unfold yU; apply min_zinf_not_Ninf; [exact Hyh | apply isub3_not_Ninf; exact Hzl]).
   destruct (pickf_mem yL yU HLU HLp HUn) as [HyLv HyUv].
   set (y := pickf yL yU) in *.
   exists y, (x - y). split; [ | split ].
   - split.
-    + eapply zle_trans; [ apply zle_zmax_l | exact HyLv ].
-    + eapply zle_trans; [ exact HyUv | apply zle_zmin_l ].
+    + eapply leq_zinf_trans; [ apply leq_zinf_max_zinf_l | exact HyLv ].
+    + eapply leq_zinf_trans; [ exact HyUv | apply leq_zinf_min_zinf_l ].
   - split.
-    + apply sub_lb. eapply zle_trans; [ exact HyUv | apply zmin_zle_r ].
-    + apply sub_ub. eapply zle_trans; [ apply zle_zmax_r | exact HyLv ].
+    + apply sub_lb. eapply leq_zinf_trans; [ exact HyUv | apply min_zinf_leq_zinf_r ].
+    + apply sub_ub. eapply leq_zinf_trans; [ apply leq_zinf_max_zinf_r | exact HyLv ].
   - lia.
 Qed.
 
 (* ---- membership / bound projection helpers ---- *)
-(* [mem3_nonempty] is provided by itv3. *)
+(* [mem3_nonempty] is provided by itv. *)
 
-Lemma mem_lo_le : forall i v, mem3 i v -> zle (lo3 i) (Fin v).
+Lemma mem_lo_le : forall i v, mem3 i v -> leq_zinf (lb i) (Fin v).
 Proof. intros i v [H1 H2]; exact H1. Qed.
 
-Lemma mem_le_hi : forall i v, mem3 i v -> zle (Fin v) (hi3 i).
+Lemma mem_le_hi : forall i v, mem3 i v -> leq_zinf (Fin v) (ub i).
 Proof. intros i v [H1 H2]; exact H2. Qed.
 
-Lemma bound_mem_hi : forall i H, nonempty3b i = true -> hi3 i = Fin H -> mem3 i H.
+Lemma bound_mem_hi : forall i H, nonempty3b i = true -> ub i = Fin H -> mem3 i H.
 Proof.
-  intros i H Hne EH. pose proof (ne_zle3 i Hne) as Hle.
-  unfold mem3. rewrite EH in *. split; [ exact Hle | apply zle_refl ].
+  intros i H Hne EH. pose proof (ne_leq_zinf3 i Hne) as Hle.
+  unfold mem3. rewrite EH in *. split; [ exact Hle | apply leq_zinf_refl ].
 Qed.
 
-Lemma bound_mem_lo : forall i L, nonempty3b i = true -> lo3 i = Fin L -> mem3 i L.
+Lemma bound_mem_lo : forall i L, nonempty3b i = true -> lb i = Fin L -> mem3 i L.
 Proof.
-  intros i L Hne EL. pose proof (ne_zle3 i Hne) as Hle.
-  unfold mem3. rewrite EL in *. split; [ apply zle_refl | exact Hle ].
+  intros i L Hne EL. pose proof (ne_leq_zinf3 i Hne) as Hle.
+  unfold mem3. rewrite EL in *. split; [ apply leq_zinf_refl | exact Hle ].
 Qed.
 
 (* The workhorses that reduce an [ile3] bound to "every member of the
    refined interval lands in [t]", handling infinite bounds uniformly. *)
-Lemma le_hi_via_witness : forall (J : itv3) (b : Zinf),
+Lemma le_hi_via_witness : forall (J : itv) (b : Zinf),
   nonempty3b J = true ->
-  (forall v, mem3 J v -> zle (Fin v) b) ->
-  zle (hi3 J) b.
+  (forall v, mem3 J v -> leq_zinf (Fin v) b) ->
+  leq_zinf (ub J) b.
 Proof.
   intros J b Hne Hmem.
-  destruct (hi3 J) as [H| |] eqn:EH.
+  destruct (ub J) as [H| |] eqn:EH.
   - apply Hmem. apply (bound_mem_hi J H Hne EH).
   - destruct b as [M| |].
-    + exfalso. destruct (lo3 J) as [l| |] eqn:EL.
+    + exfalso. destruct (lb J) as [l| |] eqn:EL.
       * assert (mem3 J (Z.max l (M+1))) as Hm.
         { unfold mem3. rewrite EH, EL. cbn. split; [ lia | exact I ]. }
         pose proof (Hmem _ Hm) as HH. cbn in HH. lia.
@@ -325,27 +325,27 @@ Proof.
         { unfold mem3. rewrite EH, EL. cbn. split; [ exact I | exact I ]. }
         pose proof (Hmem _ Hm) as HH. cbn in HH. lia.
     + exact I.
-    + exfalso. destruct (lo3 J) as [l| |] eqn:EL.
+    + exfalso. destruct (lb J) as [l| |] eqn:EL.
       * pose proof (Hmem l (bound_mem_lo J l Hne EL)) as HH. cbn in HH. exact HH.
       * unfold nonempty3b in Hne. rewrite EL in Hne. discriminate.
       * assert (mem3 J 0) as Hm.
         { unfold mem3. rewrite EH, EL. split; [ exact I | exact I ]. }
         pose proof (Hmem _ Hm) as HH. cbn in HH. exact HH.
   - exfalso. unfold nonempty3b in Hne. rewrite EH in Hne.
-    destruct (lo3 J); discriminate.
+    destruct (lb J); discriminate.
 Qed.
 
-Lemma ge_lo_via_witness : forall (J : itv3) (b : Zinf),
+Lemma ge_lo_via_witness : forall (J : itv) (b : Zinf),
   nonempty3b J = true ->
-  (forall v, mem3 J v -> zle b (Fin v)) ->
-  zle b (lo3 J).
+  (forall v, mem3 J v -> leq_zinf b (Fin v)) ->
+  leq_zinf b (lb J).
 Proof.
   intros J b Hne Hmem.
-  destruct (lo3 J) as [L| |] eqn:EL.
+  destruct (lb J) as [L| |] eqn:EL.
   - apply Hmem. apply (bound_mem_lo J L Hne EL).
   - exfalso. unfold nonempty3b in Hne. rewrite EL in Hne. discriminate.
   - destruct b as [M| |].
-    + exfalso. destruct (hi3 J) as [h| |] eqn:EH.
+    + exfalso. destruct (ub J) as [h| |] eqn:EH.
       * assert (mem3 J (Z.min h (M-1))) as Hm.
         { unfold mem3. rewrite EH, EL. cbn. split; [ exact I | lia ]. }
         pose proof (Hmem _ Hm) as HH. cbn in HH. lia.
@@ -353,7 +353,7 @@ Proof.
         { unfold mem3. rewrite EH, EL. cbn. split; [ exact I | exact I ]. }
         pose proof (Hmem _ Hm) as HH. cbn in HH. lia.
       * unfold nonempty3b in Hne. rewrite EL, EH in Hne. discriminate.
-    + exfalso. destruct (hi3 J) as [h| |] eqn:EH.
+    + exfalso. destruct (ub J) as [h| |] eqn:EH.
       * pose proof (Hmem h (bound_mem_hi J h Hne EH)) as HH. cbn in HH. exact HH.
       * assert (mem3 J 0) as Hm.
         { unfold mem3. rewrite EH, EL. split; [ exact I | exact I ]. }
@@ -363,28 +363,28 @@ Proof.
 Qed.
 
 (* ---- intersection membership inversion + sum/difference attainment ---- *)
-Lemma zmax_le_split : forall a b c, zle (zmax a b) c -> zle a c /\ zle b c.
+Lemma max_zinf_le_split : forall a b c, leq_zinf (max_zinf a b) c -> leq_zinf a c /\ leq_zinf b c.
 Proof. intros [a| |] [b| |] [c| |] H; cbn in *; split; try easy; lia. Qed.
 
-Lemma zle_zmin_split : forall a b c, zle c (zmin a b) -> zle c a /\ zle c b.
+Lemma leq_zinf_min_zinf_split : forall a b c, leq_zinf c (min_zinf a b) -> leq_zinf c a /\ leq_zinf c b.
 Proof. intros [a| |] [b| |] [c| |] H; cbn in *; split; try easy; lia. Qed.
 
 Lemma mem3_inter_inv : forall i j v, mem3 (inter3 i j) v -> mem3 i v /\ mem3 j v.
 Proof.
-  intros i j v [H1 H2]. unfold inter3 in *. cbn [lo3 hi3] in H1, H2.
-  apply zmax_le_split in H1 as [Ha Hb]. apply zle_zmin_split in H2 as [Hc Hd].
+  intros i j v [H1 H2]. unfold inter3 in *. cbn [lb ub] in H1, H2.
+  apply max_zinf_le_split in H1 as [Ha Hb]. apply leq_zinf_min_zinf_split in H2 as [Hc Hd].
   split; split; assumption.
 Qed.
 
 (* Any member of the refined-x interval is the x of a full solution. *)
 Lemma attain_x : forall sx sy sz v,
   nonempty3b sy = true -> nonempty3b sz = true ->
-  mem3 (inter3 sx (Itv3 (iadd3 (lo3 sy) (lo3 sz)) (iadd3 (hi3 sy) (hi3 sz)))) v ->
+  mem3 (inter3 sx (Itv (iadd3 (lb sy) (lb sz)) (iadd3 (ub sy) (ub sz)))) v ->
   exists vy vz, mem3 sx v /\ mem3 sy vy /\ mem3 sz vz /\ v = vy + vz.
 Proof.
   intros sx sy sz v Hney Hnez Hmem.
   apply mem3_inter_inv in Hmem as [Hsx Hhull].
-  destruct Hhull as [Hl Hh]. cbn [lo3 hi3] in Hl, Hh.
+  destruct Hhull as [Hl Hh]. cbn [lb ub] in Hl, Hh.
   destruct (add_decomp sy sz v Hney Hnez Hl Hh) as (vy & vz & Hy & Hz & Heq).
   exists vy, vz. split; [ exact Hsx | split; [ exact Hy | split; [ exact Hz | exact Heq ] ] ].
 Qed.
@@ -395,52 +395,52 @@ Proof. intros [x| |] v Ha; cbn; congruence. Qed.
 Lemma isub3_fin_not_Ninf : forall a v, a <> Ninf -> isub3 a (Fin v) <> Ninf.
 Proof. intros [x| |] v Ha; cbn; congruence. Qed.
 
-Lemma sub_lo_bridge : forall c v z, zle (isub3 c (Fin v)) (Fin z) -> zle c (Fin (v + z)).
+Lemma sub_lo_bridge : forall c v z, leq_zinf (isub3 c (Fin v)) (Fin z) -> leq_zinf c (Fin (v + z)).
 Proof. intros [x| |] v z H; cbn in *; try easy; lia. Qed.
 
-Lemma sub_hi_bridge : forall c v z, zle (Fin z) (isub3 c (Fin v)) -> zle (Fin (v + z)) c.
+Lemma sub_hi_bridge : forall c v z, leq_zinf (Fin z) (isub3 c (Fin v)) -> leq_zinf (Fin (v + z)) c.
 Proof. intros [x| |] v z H; cbn in *; try easy; lia. Qed.
 
-Lemma sub_rearr_b : forall hx lz v, zle (Fin v) (isub3 hx lz) -> zle lz (isub3 hx (Fin v)).
+Lemma sub_rearr_b : forall hx lz v, leq_zinf (Fin v) (isub3 hx lz) -> leq_zinf lz (isub3 hx (Fin v)).
 Proof. intros [x| |] [z| |] v H; cbn in *; try easy; lia. Qed.
 
-Lemma sub_rearr_c : forall lx hz v, zle (isub3 lx hz) (Fin v) -> zle (isub3 lx (Fin v)) hz.
+Lemma sub_rearr_c : forall lx hz v, leq_zinf (isub3 lx hz) (Fin v) -> leq_zinf (isub3 lx (Fin v)) hz.
 Proof. intros [x| |] [z| |] v H; cbn in *; try easy; lia. Qed.
 
 (* Difference decomposition: any [v] in the diff-hull [isx - isz] yields
    [x] in [isx] and [z] in [isz] with [x = v + z]. *)
 Lemma sub_decomp : forall isx isz v,
   nonempty3b isx = true -> nonempty3b isz = true ->
-  zle (isub3 (lo3 isx) (hi3 isz)) (Fin v) ->
-  zle (Fin v) (isub3 (hi3 isx) (lo3 isz)) ->
+  leq_zinf (isub3 (lb isx) (ub isz)) (Fin v) ->
+  leq_zinf (Fin v) (isub3 (ub isx) (lb isz)) ->
   exists x z, mem3 isx x /\ mem3 isz z /\ x = v + z.
 Proof.
   intros isx isz v Hnex Hnez H1 H2.
   destruct (nonempty_bounds3 isx Hnex) as [Hxl Hxh].
   destruct (nonempty_bounds3 isz Hnez) as [Hzl Hzh].
-  pose proof (ne_zle3 isx Hnex) as Hxle.
-  pose proof (ne_zle3 isz Hnez) as Hzle.
-  set (zL := zmax (lo3 isz) (isub3 (lo3 isx) (Fin v))).
-  set (zU := zmin (hi3 isz) (isub3 (hi3 isx) (Fin v))).
-  assert (HLU : zle zL zU).
-  { unfold zL, zU. apply zle_zmin_glb.
-    - apply zmax_lub; [ exact Hzle | apply sub_rearr_c; exact H1 ].
-    - apply zmax_lub.
+  pose proof (ne_leq_zinf3 isx Hnex) as Hxle.
+  pose proof (ne_leq_zinf3 isz Hnez) as Hleq_zinf.
+  set (zL := max_zinf (lb isz) (isub3 (lb isx) (Fin v))).
+  set (zU := min_zinf (ub isz) (isub3 (ub isx) (Fin v))).
+  assert (HLU : leq_zinf zL zU).
+  { unfold zL, zU. apply leq_zinf_min_zinf_glb.
+    - apply max_zinf_lub; [ exact Hleq_zinf | apply sub_rearr_c; exact H1 ].
+    - apply max_zinf_lub.
       + apply sub_rearr_b; exact H2.
-      + apply isub3_mono; [ exact Hxle | apply zle_refl ]. }
+      + apply isub3_mono; [ exact Hxle | apply leq_zinf_refl ]. }
   assert (HLp : zL <> Pinf)
-    by (unfold zL; apply zmax_not_Pinf; [ exact Hzl | apply isub3_fin_not_Pinf; exact Hxl ]).
+    by (unfold zL; apply max_zinf_not_Pinf; [ exact Hzl | apply isub3_fin_not_Pinf; exact Hxl ]).
   assert (HUn : zU <> Ninf)
-    by (unfold zU; apply zmin_not_Ninf; [ exact Hzh | apply isub3_fin_not_Ninf; exact Hxh ]).
+    by (unfold zU; apply min_zinf_not_Ninf; [ exact Hzh | apply isub3_fin_not_Ninf; exact Hxh ]).
   destruct (pickf_mem zL zU HLU HLp HUn) as [HzLv HzUv].
   set (z := pickf zL zU) in *.
   exists (v + z), z. split; [ | split ].
   - split.
-    + apply sub_lo_bridge. eapply zle_trans; [ apply zle_zmax_r | exact HzLv ].
-    + apply sub_hi_bridge. eapply zle_trans; [ exact HzUv | apply zmin_zle_r ].
+    + apply sub_lo_bridge. eapply leq_zinf_trans; [ apply leq_zinf_max_zinf_r | exact HzLv ].
+    + apply sub_hi_bridge. eapply leq_zinf_trans; [ exact HzUv | apply min_zinf_leq_zinf_r ].
   - split.
-    + eapply zle_trans; [ apply zle_zmax_l | exact HzLv ].
-    + eapply zle_trans; [ exact HzUv | apply zle_zmin_l ].
+    + eapply leq_zinf_trans; [ apply leq_zinf_max_zinf_l | exact HzLv ].
+    + eapply leq_zinf_trans; [ exact HzUv | apply leq_zinf_min_zinf_l ].
   - reflexivity.
 Qed.
 
@@ -457,12 +457,12 @@ Proof.
   pose proof (mem3_nonempty _ _ Hfz) as Hnez0.
   pose proof (zadd3_soundness s fx fy fz (conj Hfx (conj Hfy Hfz)) Hasol) as Hsol.
   unfold zadd3 in *; cbv zeta in *.
-  set (X := inter3 (sx3 s) (Itv3 (iadd3 (lo3 (sy3 s)) (lo3 (sz3 s)))
-                                 (iadd3 (hi3 (sy3 s)) (hi3 (sz3 s))))) in *.
-  set (Y := inter3 (sy3 s) (Itv3 (isub3 (lo3 X) (hi3 (sz3 s)))
-                                 (isub3 (hi3 X) (lo3 (sz3 s))))) in *.
-  set (Z := inter3 (sz3 s) (Itv3 (isub3 (lo3 X) (hi3 Y))
-                                 (isub3 (hi3 X) (lo3 Y)))) in *.
+  set (X := inter3 (sx3 s) (Itv (iadd3 (lb (sy3 s)) (lb (sz3 s)))
+                                 (iadd3 (ub (sy3 s)) (ub (sz3 s))))) in *.
+  set (Y := inter3 (sy3 s) (Itv (isub3 (lb X) (ub (sz3 s)))
+                                 (isub3 (ub X) (lb (sz3 s))))) in *.
+  set (Z := inter3 (sz3 s) (Itv (isub3 (lb X) (ub Y))
+                                 (isub3 (ub X) (lb Y)))) in *.
   destruct Hsol as (HmX & HmY & HmZ). cbn [sx3 sy3 sz3] in HmX, HmY, HmZ.
   pose proof (mem3_nonempty _ _ HmX) as HneX.
   pose proof (mem3_nonempty _ _ HmY) as HneY.
@@ -485,7 +485,7 @@ Proof.
     + apply ge_lo_via_witness; [ exact HneY |].
       intros v Hv.
       apply mem3_inter_inv in Hv as [Hsyv Hdiff].
-      destruct Hdiff as [Hd1 Hd2]. cbn [lo3 hi3] in Hd1, Hd2.
+      destruct Hdiff as [Hd1 Hd2]. cbn [lb ub] in Hd1, Hd2.
       destruct (sub_decomp X (sz3 s) v HneX Hnez0 Hd1 Hd2) as (x & z & HmXx & Hszz & Hxeq).
       apply mem3_inter_inv in HmXx as [Hsxx _].
       destruct (Hct x v z (conj Hsxx (conj Hsyv Hszz)) Hxeq) as (_ & Hty & _).
@@ -493,7 +493,7 @@ Proof.
     + apply le_hi_via_witness; [ exact HneY |].
       intros v Hv.
       apply mem3_inter_inv in Hv as [Hsyv Hdiff].
-      destruct Hdiff as [Hd1 Hd2]. cbn [lo3 hi3] in Hd1, Hd2.
+      destruct Hdiff as [Hd1 Hd2]. cbn [lb ub] in Hd1, Hd2.
       destruct (sub_decomp X (sz3 s) v HneX Hnez0 Hd1 Hd2) as (x & z & HmXx & Hszz & Hxeq).
       apply mem3_inter_inv in HmXx as [Hsxx _].
       destruct (Hct x v z (conj Hsxx (conj Hsyv Hszz)) Hxeq) as (_ & Hty & _).
@@ -502,7 +502,7 @@ Proof.
     + apply ge_lo_via_witness; [ exact HneZ |].
       intros v Hv.
       apply mem3_inter_inv in Hv as [Hszv Hdiff].
-      destruct Hdiff as [Hd1 Hd2]. cbn [lo3 hi3] in Hd1, Hd2.
+      destruct Hdiff as [Hd1 Hd2]. cbn [lb ub] in Hd1, Hd2.
       destruct (sub_decomp X Y v HneX HneY Hd1 Hd2) as (x & y & HmXx & HmYy & Hxeq).
       apply mem3_inter_inv in HmXx as [Hsxx _].
       apply mem3_inter_inv in HmYy as [Hsyy _].
@@ -512,7 +512,7 @@ Proof.
     + apply le_hi_via_witness; [ exact HneZ |].
       intros v Hv.
       apply mem3_inter_inv in Hv as [Hszv Hdiff].
-      destruct Hdiff as [Hd1 Hd2]. cbn [lo3 hi3] in Hd1, Hd2.
+      destruct Hdiff as [Hd1 Hd2]. cbn [lb ub] in Hd1, Hd2.
       destruct (sub_decomp X Y v HneX HneY Hd1 Hd2) as (x & y & HmXx & HmYy & Hxeq).
       apply mem3_inter_inv in HmXx as [Hsxx _].
       apply mem3_inter_inv in HmYy as [Hsyy _].
