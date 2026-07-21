@@ -15,7 +15,7 @@
     axiom-free. *)
 
 From Stdlib Require Import ZArith Lia Classical.
-From LalaInterval Require Import itv.
+From LalaInterval Require Import inf itv.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)

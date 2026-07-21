@@ -11,7 +11,7 @@
     ternarization identity that justifies the composed part. *)
 
 From Stdlib Require Import ZArith Lia.
-From LalaInterval Require Import itv zadd zmul.
+From LalaInterval Require Import inf itv zadd zmul.
 Open Scope Z_scope.
 
 (* truncated-modulus solution relation: x = y rem z with z <> 0. *)

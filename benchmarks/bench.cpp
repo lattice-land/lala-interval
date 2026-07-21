@@ -367,9 +367,9 @@ void benchmark(const char* itv_name, bool csv) {
     // {MULDIV, FP},
     // {MUL, FP},
     {TDIV, P},
-    {FDIV, P},
-    {CDIV, P},
-    {EDIV, P},
+    // {FDIV, P},
+    // {CDIV, P},
+    // {EDIV, P},
     // {TDIV, FDP},
     // {FDIV, P},
     // {FDIV, FDP},
@@ -442,13 +442,13 @@ void benchmark(const char* itv_name, bool csv) {
             },
             ask::zmul<value_type>); break;
           case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
-            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv_4<value_type>,
+            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv_pos<value_type>,
             ask::zfdiv<value_type>); break;
           case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::zcdiv<FInterval<double>, value_type> : tell::zcdiv_4<value_type>,
             ask::zcdiv<value_type>); break;
           case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
-            boundr ? boundr::tell::ztdiv<FInterval<double>, value_type> : tell::ztdiv_4<value_type>,
+            boundr ? boundr::tell::ztdiv<FInterval<double>, value_type> : tell::ztdiv_5<value_type>,
             ask::ztdiv<value_type>); break;
           case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::zediv<FInterval<double>, value_type> : tell::zediv_4<value_type>,

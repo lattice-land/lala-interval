@@ -1459,6 +1459,70 @@ CUDA INLINE constexpr void zediv_4(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval
   }
 }
 
+// Contracts x, y, z for x = tdiv(y, z) on the positive slice of z, expressed
+// purely through the floor solver.  For z >= 1 truncation toward zero equals:
+//     trunc(y, z) = floor(y, z)                  when y >= 0
+//     trunc(y, z) = ceil(y, z) = -floor(-y, z)   when y <  0
+// so split y at 0, run zfdiv_pos on each part (mirroring x, y on the negative
+// part, where trunc = ceil), and join the two slices.  (The positive-z
+// restriction z := z n [1, +oo] is applied inside zfdiv_pos.)
+template<class VT>
+CUDA INLINE constexpr void ztdiv_pos_f(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  // y >= 0 slice: trunc(y, z) = floor(y, z).
+  ZInterval<VT> xp(x), yp(y), zp(z);
+  yp.lb().meet(VT{0});
+  if(!yp.is_bot()) { zfdiv_pos(xp, yp, zp); }
+  // y < 0 slice: trunc(y, z) = ceil(y, z) = -floor(-y, z).
+  ZInterval<VT> xn(x), yn(y), zn(z);
+  yn.ub().meet(VT{-1});
+  if(!yn.is_bot()) {
+    zmirror(xn);
+    zmirror(yn);
+    zfdiv_pos(xn, yn, zn);
+    zmirror(xn);
+    zmirror(yn);
+  }
+  // Join the two y-slices (a bot slice contributes nothing).
+  bool botp = xp.is_bot() || yp.is_bot() || zp.is_bot();
+  bool botn = xn.is_bot() || yn.is_bot() || zn.is_bot();
+  if(botp && botn) { x.meet_bot(); y.meet_bot(); z.meet_bot(); }
+  else if(botp) { x = xn; y = yn; z = zn; }
+  else if(botn) { x = xp; y = yp; z = zp; }
+  else {
+    x = xp; y = yp; z = zp;
+    x.join(xn);
+    y.join(yn);
+    z.join(zn);
+  }
+}
+
+// x = tdiv(y, z) (truncated division), z != 0, implemented via the floor solver
+// only (same result as ztdiv_4).  z < 0 reduces to z > 0 by the mirror identity
+// trunc(y/z) = -trunc(y/(-z)) (mirror x, z), exactly as in ztdiv_4.
+template<class VT>
+CUDA INLINE constexpr void ztdiv_5(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+  if(x.is_bot() || y.is_bot() || z.is_bot()) { return; }
+  ZInterval<VT> x2(x), y2(y), z2(z);
+  // CASE 1: z is positive.
+  ztdiv_pos_f(x, y, z);
+  // CASE 2: z is negative: trunc(y/z) = -trunc(y/(-z)).
+  zmirror(x2);
+  zmirror(z2);
+  ztdiv_pos_f(x2, y2, z2);
+  zmirror(x2);
+  zmirror(z2);
+  if(x.is_bot() || y.is_bot() || z.is_bot()) {
+    x = x2;
+    y = y2;
+    z = z2;
+  }
+  else if(!x2.is_bot() && !y2.is_bot() && !z2.is_bot()) {
+    x.join(x2);
+    y.join(y2);
+    z.join(z2);
+  }
+}
+
 // x = tmod(y, z) : truncated modulus (C++ `%`), z != 0.
 //
 // The remainder shares the sign of the dividend and is strictly smaller in

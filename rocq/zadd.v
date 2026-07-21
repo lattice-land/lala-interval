@@ -16,7 +16,7 @@
     Order is the QUOTIENTED lattice one (itv.ile3/sle3): empties = bottom. *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import itv.
+From LalaInterval Require Import inf itv.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)

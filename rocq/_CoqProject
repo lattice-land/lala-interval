@@ -1,4 +1,6 @@
 -R . LalaInterval
+Lemmas.v
+inf.v
 itv.v
 itv_lattice.v
 store_lattice.v
