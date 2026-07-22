@@ -5,7 +5,7 @@
     (each using the already-refined companions), with no finiteness guard.
 
     The full propagator property suite is proved (mirroring div4.v):
-      - soundness              : [zadd3_soundness]
+      - soundness              : [add_zitv3_soundness]
       - best transformer       : [zadd3_complete]    (completeness)
       - ne-feasibility         : [zadd3_ne_feasible]
       - reductivity            : [zadd3_reductive]    (unconditional)
@@ -32,18 +32,11 @@ Definition add_zitv3 (s : zitv3) : zitv3 :=
                                 (sub_zinf (ub x) (lb y))) in
   ZItv3 x y z.
 
-Lemma contains_inter : forall i j v, contains i v -> contains j v -> contains (meet_zitv i j) v.
-Proof.
-  intros [li ui] [lj uj] v [H1 H2] [H3 H4]; cbn in *; split; cbn.
-  - destruct li as [x| |], lj as [y| |]; cbn in *; try easy; lia.
-  - destruct ui as [x| |], uj as [y| |]; cbn in *; try easy; lia.
-Qed.
-
 (* ------------------------------------------------------------------ *)
 (** ** The four propagator properties                                  *)
 (* ------------------------------------------------------------------ *)
 
-Theorem zadd3_soundness : forall s vx vy vz,
+Theorem add_zitv3_soundness : forall s vx vy vz,
   in_zitv3 s vx vy vz -> vx = vy + vz ->
   in_zitv3 (add_zitv3 s) vx vy vz.
 Proof.
@@ -366,7 +359,7 @@ Proof.
   destruct Hin as (Hfx & Hfy & Hfz).
   pose proof (contains_nonempty _ _ Hfy) as Hney0.
   pose proof (contains_nonempty _ _ Hfz) as Hnez0.
-  pose proof (zadd3_soundness s fx fy fz (conj Hfx (conj Hfy Hfz)) Hasol) as Hsol.
+  pose proof (add_zitv3_soundness s fx fy fz (conj Hfx (conj Hfy Hfz)) Hasol) as Hsol.
   unfold add_zitv3 in *; cbv zeta in *.
   set (X := meet_zitv (x s) (ZItv (add_zinf (lb (sy3 s)) (lb (sz3 s)))
                                  (add_zinf (ub (sy3 s)) (ub (sz3 s))))) in *.
@@ -475,7 +468,7 @@ Qed.
         ~, i.e. mutual [sle3]) — all UNCONDITIONAL, obtained from the
         generic [closure_laws] via soundness + best-transformer + ne-feasibility. *)
 Definition zadd3_closure :=
-  closure_laws asol add_zitv3 zadd3_soundness
+  closure_laws asol add_zitv3 add_zitv3_soundness
     (fun s (_ : feasible3 asol s) => zadd3_complete s) zadd3_ne_feasible.
 
 Theorem zadd3_reductive : forall s, sle3 (add_zitv3 s) s.

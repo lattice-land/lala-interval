@@ -90,3 +90,10 @@ Proof.
   - apply max_zinf_mono; assumption.
   - apply min_zinf_mono; assumption.
 Qed.
+
+Lemma contains_inter : forall i j v, contains i v -> contains j v -> contains (meet_zitv i j) v.
+Proof.
+  intros [li ui] [lj uj] v [H1 H2] [H3 H4]; cbn in *; split; cbn.
+  - destruct li as [x| |], lj as [y| |]; cbn in *; try easy; lia.
+  - destruct ui as [x| |], uj as [y| |]; cbn in *; try easy; lia.
+Qed.
