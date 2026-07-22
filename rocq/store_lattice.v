@@ -1,7 +1,7 @@
 (** * store_lattice.v : the general store (X -> I)/~ is a COMPLETE LATTICE.
 
-    Generalising [store3] (the fixed 3-variable store) to an arbitrary index
-    type [V] of variables: a store is a total map [V -> itv].  As in the
+    Generalising [zitv3] (the fixed 3-variable store) to an arbitrary index
+    type [V] of variables: a store is a total map [V -> zitv].  As in the
     paper's \mathbf{I} = (X -> \widetilde{I})/~_I, all FAILED stores (some
     variable empty) are identified with bottom; this is modelled by the order
     [sle] carrying the [~ ne_store] disjunct, so equality is up to [seq].
@@ -13,41 +13,41 @@
     (= [classic] + [choice]); the interval and propagator files stay clean. *)
 
 From Stdlib Require Import ZArith Lia ClassicalChoice.
-From LalaInterval Require Import itv itv_lattice.
+From LalaInterval Require Import ZItv3 itv_lattice.
 Open Scope Z_scope.
 
 Section StoreLattice.
 Context {V : Type}.
 
-Definition store := V -> itv.
+Definition store := V -> zitv.
 
 (* concretization: an assignment [rho] is in [s] iff pointwise in range. *)
-Definition in_store (s : store) (rho : V -> Z) : Prop := forall x, mem3 (s x) (rho x).
+Definition in_store (s : store) (rho : V -> Z) : Prop := forall x, contains (s x) (rho x).
 
 (* a store is non-failed iff every variable is non-empty. *)
-Definition ne_store (s : store) : Prop := forall x, nonempty3b (s x) = true.
+Definition ne_store (s : store) : Prop := forall x, is_not_bot_zitv (s x) = true.
 
-(* quotient store order: failed stores are bottom, else pointwise [ile3]. *)
-Definition sle (a b : store) : Prop := ~ ne_store a \/ (forall x, ile3 (a x) (b x)).
+(* quotient store order: failed stores are bottom, else pointwise [leq_zitv]. *)
+Definition sle (a b : store) : Prop := ~ ne_store a \/ (forall x, leq_zitv (a x) (b x)).
 Definition seq (a b : store) : Prop := sle a b /\ sle b a.
 
 (* ---- intro / inversion for the quotient order ---- *)
-Lemma sle_raw : forall a b, (forall x, ile3 (a x) (b x)) -> sle a b.
+Lemma sle_raw : forall a b, (forall x, leq_zitv (a x) (b x)) -> sle a b.
 Proof. intros a b H; right; exact H. Qed.
 
 Lemma sle_bot : forall a b, ~ ne_store a -> sle a b.
 Proof. intros a b H; left; exact H. Qed.
 
-Lemma sle_ne_inv : forall a b, ne_store a -> sle a b -> forall x, ile3 (a x) (b x).
+Lemma sle_ne_inv : forall a b, ne_store a -> sle a b -> forall x, leq_zitv (a x) (b x).
 Proof. intros a b Hne [Hb | Hraw]; [ contradiction | exact Hraw ]. Qed.
 
 (* a raw containment with a non-failed smaller side forces the larger non-failed *)
-Lemma ne_store_mono : forall a b, ne_store a -> (forall x, ile3 (a x) (b x)) -> ne_store b.
+Lemma ne_store_mono : forall a b, ne_store a -> (forall x, leq_zitv (a x) (b x)) -> ne_store b.
 Proof.
   intros a b Ha Hle x.
   pose proof (Ha x) as Hax. pose proof (Hle x) as Hlex.
-  apply (ile3_ne_inv (a x) (b x) Hax) in Hlex as [Hlo Hhi].
-  exact (raw_ile_ne (a x) (b x) Hax Hlo Hhi).
+  apply (all_is_geq_bot_zitv (a x) (b x) Hax) in Hlex as [Hlo Hhi].
+  exact (contains_not_bot_implies_not_bot_zitv (a x) (b x) Hax Hlo Hhi).
 Qed.
 
 Lemma sle_refl : forall a, sle a a.

@@ -11,7 +11,7 @@
     ternarization identity that justifies the composed part. *)
 
 From Stdlib Require Import ZArith Lia.
-From LalaInterval Require Import Zinf itv zadd zmul.
+From LalaInterval Require Import ZItv3 AddZItv3 zmul.
 Open Scope Z_scope.
 
 (* truncated-modulus solution relation: x = y rem z with z <> 0. *)
@@ -49,10 +49,10 @@ Qed.
 (** ** The remainder envelope on the interval domain                    *)
 (* ------------------------------------------------------------------ *)
 
-(* Upper bound on |v| for any v in an interval, over Zinf (infinity-aware). *)
-Definition zabs_ub (i : itv) : Zinf := max_zinf (isneg_zinf3 (lb i)) (ub i).
+(* Upper bound on |v| for any v in an interval, over zinf (infinity-aware). *)
+Definition zabs_ub (i : zitv) : zinf := max_zinf (isneg_zinf3 (lb i)) (ub i).
 
-Lemma zabs_ub_sound : forall i v, mem3 i v -> leq_zinf (Fin (Z.abs v)) (zabs_ub i).
+Lemma zabs_ub_sound : forall i v, contains i v -> leq_zinf (Fin (Z.abs v)) (zabs_ub i).
 Proof.
   intros i v [Hlo Hhi]. unfold zabs_ub.
   assert (E : Fin (Z.abs v) = max_zinf (isneg_zinf3 (Fin v)) (Fin v)) by (cbn; f_equal; lia).
@@ -63,25 +63,25 @@ Qed.
      lower = max( min(lo y, 0),  -(|z|_max - 1) )     upper = min( max(hi y, 0),  |z|_max - 1 )
    combining the sign bound (x has y's sign, |x| <= |y|) with the magnitude
    bound (|x| <= |z| - 1). *)
-Definition tmod_env (sy sz : itv) : itv :=
-  Itv (max_zinf (min_zinf (lb sy) (Fin 0)) (iadd3 (isneg_zinf3 (zabs_ub sz)) (Fin 1)))
-       (min_zinf (max_zinf (ub sy) (Fin 0)) (isub3 (zabs_ub sz) (Fin 1))).
+Definition tmod_env (sy sz : zitv) : zitv :=
+  ZItv (max_zinf (min_zinf (lb sy) (Fin 0)) (add_zinf (isneg_zinf3 (zabs_ub sz)) (Fin 1)))
+       (min_zinf (max_zinf (ub sy) (Fin 0)) (sub_zinf (zabs_ub sz) (Fin 1))).
 
-Lemma mem3_tmod_env : forall sy sz vy vz,
-  vz <> 0 -> mem3 sy vy -> mem3 sz vz -> mem3 (tmod_env sy sz) (Z.rem vy vz).
+Lemma contains_tmod_env : forall sy sz vy vz,
+  vz <> 0 -> contains sy vy -> contains sz vz -> contains (tmod_env sy sz) (Z.rem vy vz).
 Proof.
   intros sy sz vy vz Hz [Hylo Hyhi] Hsz.
   pose proof (zabs_ub_sound sz vz Hsz) as Hzabs.
   pose proof (Z.rem_bound_abs vy vz Hz) as Hra.
-  assert (Hmagu : leq_zinf (Fin (Z.rem vy vz)) (isub3 (zabs_ub sz) (Fin 1))).
+  assert (Hmagu : leq_zinf (Fin (Z.rem vy vz)) (sub_zinf (zabs_ub sz) (Fin 1))).
   { apply (leq_zinf_trans _ (Fin (Z.abs vz - 1))).
     - cbn; lia.
-    - assert (E : Fin (Z.abs vz - 1) = isub3 (Fin (Z.abs vz)) (Fin 1)) by (cbn; f_equal; lia).
-      rewrite E. apply isub3_mono; [ exact Hzabs | apply leq_zinf_refl ]. }
-  assert (Hmagl : leq_zinf (iadd3 (isneg_zinf3 (zabs_ub sz)) (Fin 1)) (Fin (Z.rem vy vz))).
+    - assert (E : Fin (Z.abs vz - 1) = sub_zinf (Fin (Z.abs vz)) (Fin 1)) by (cbn; f_equal; lia).
+      rewrite E. apply sub_zinf_monotone; [ exact Hzabs | apply leq_zinf_refl ]. }
+  assert (Hmagl : leq_zinf (add_zinf (isneg_zinf3 (zabs_ub sz)) (Fin 1)) (Fin (Z.rem vy vz))).
   { apply (leq_zinf_trans _ (Fin (- Z.abs vz + 1))).
-    - assert (E : Fin (- Z.abs vz + 1) = iadd3 (isneg_zinf3 (Fin (Z.abs vz))) (Fin 1)) by (cbn; f_equal; lia).
-      rewrite E. apply iadd3_mono; [ apply isneg_zinf3_anti; exact Hzabs | apply leq_zinf_refl ].
+    - assert (E : Fin (- Z.abs vz + 1) = add_zinf (isneg_zinf3 (Fin (Z.abs vz))) (Fin 1)) by (cbn; f_equal; lia).
+      rewrite E. apply add_zinf_monotone; [ apply isneg_zinf3_anti; exact Hzabs | apply leq_zinf_refl ].
     - cbn; lia. }
   split.
   - unfold tmod_env; cbn [lb]. apply max_zinf_lub; [ | exact Hmagl ].
@@ -106,16 +106,16 @@ Qed.
 
 (* Direct modulus narrowing: clip x to the remainder envelope and force z <> 0
    (via [neqz3], shaving a 0-bound). y is untouched by the direct step. *)
-Definition ztmod (s : store3) : store3 :=
-  St3 (inter3 (sx3 s) (tmod_env (sy3 s) (sz3 s))) (sy3 s) (neqz3 (sz3 s)).
+Definition ztmod (s : zitv3) : zitv3 :=
+  ZItv3 (meet_zitv (x s) (tmod_env (sy3 s) (sz3 s))) (sy3 s) (neqz3 (sz3 s)).
 
 Theorem ztmod_soundness : forall s vx vy vz,
-  in_store3 s vx vy vz -> tmsol vx vy vz -> in_store3 (ztmod s) vx vy vz.
+  in_zitv3 s vx vy vz -> tmsol vx vy vz -> in_zitv3 (ztmod s) vx vy vz.
 Proof.
   intros s vx vy vz (Hx & Hy & Hz) [Hnz Heq]. subst vx.
-  unfold ztmod, in_store3; cbn [sx3 sy3 sz3].
+  unfold ztmod, in_zitv3; cbn [x sy3 sz3].
   split; [ | split ].
-  - apply mem3_inter; [ exact Hx | apply mem3_tmod_env; assumption ].
+  - apply contains_inter; [ exact Hx | apply contains_tmod_env; assumption ].
   - exact Hy.
   - apply neqz3_sound; [ exact Hz | exact Hnz ].
 Qed.

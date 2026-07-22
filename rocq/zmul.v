@@ -1,6 +1,6 @@
 (** * zmul3: the multiplication propagator with INFINITE bounds
 
-    Rocq model of the C++ [zmul3] (zinterval.hpp): x = y * z over Zinf
+    Rocq model of the C++ [zmul3] (zinterval.hpp): x = y * z over zinf
     intervals.  Constant-time structure: 4-corner product hull, zero-shaving
     of the factors when 0 is not in x, division-back by the cdiv/fdiv corner
     hull when the co-factor is sign-definite (on solutions y = x / z exactly),
@@ -17,67 +17,67 @@
       - completeness/singleton : [zmul3_singleton_complete] *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From LalaInterval Require Import Concrete Zinf itv zadd.
+From LalaInterval Require Import Concrete ZItv3 AddZItv3.
 Open Scope Z_scope.
 
 (* ------------------------------------------------------------------ *)
 (** ** Auxiliary operations (mirror the C++)                           *)
 (* ------------------------------------------------------------------ *)
 
-Definition isneg_zinf3 (a : Zinf) : Zinf :=
+Definition isneg_zinf3 (a : zinf) : zinf :=
   match a with Fin v => Fin (- v) | Pinf => Ninf | Ninf => Pinf end.
 
 (* neq_zero: shave a zero bound *)
-Definition neqz3 (i : itv) : itv :=
-  Itv (if iszero_zinf (lb i) then Fin 1 else lb i)
+Definition neqz3 (i : zitv) : zitv :=
+  ZItv (if iszero_zinf (lb i) then Fin 1 else lb i)
        (if iszero_zinf (ub i) then Fin (-1) else ub i).
 
 (* 4-corner product hull *)
-Definition mul_hull3 (iy iz : itv) : itv :=
-  Itv (min_zinf (min_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
+Definition mul_hull3 (iy iz : zitv) : zitv :=
+  ZItv (min_zinf (min_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
              (min_zinf (mul_zinf (ub iy) (lb iz)) (mul_zinf (ub iy) (ub iz))))
        (max_zinf (max_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
              (max_zinf (mul_zinf (ub iy) (lb iz)) (mul_zinf (ub iy) (ub iz)))).
 
 (* division-back corner hull (sound for EXACT quotients: y = x / z on
    solutions); only used on sign-definite ib *)
-Definition div_back3 (ix ib : itv) : itv :=
-  Itv (min_zinf (min_zinf (cdiv_zinf (lb ix) (lb ib)) (cdiv_zinf (lb ix) (ub ib)))
+Definition div_back3 (ix ib : zitv) : zitv :=
+  ZItv (min_zinf (min_zinf (cdiv_zinf (lb ix) (lb ib)) (cdiv_zinf (lb ix) (ub ib)))
              (min_zinf (cdiv_zinf (ub ix) (lb ib)) (cdiv_zinf (ub ix) (ub ib))))
        (max_zinf (max_zinf (fdiv_zinf (lb ix) (lb ib)) (fdiv_zinf (lb ix) (ub ib)))
              (max_zinf (fdiv_zinf (ub ix) (lb ib)) (fdiv_zinf (ub ix) (ub ib)))).
 
 (* |target| <= |x| window (used when the co-factor straddles 0 but 0 notin x,
    so the co-factor is a non-zero integer: |b| >= 1) *)
-Definition absb3 (ix : itv) : itv :=
-  Itv (min_zinf (lb ix) (isneg_zinf3 (ub ix))) (max_zinf (isneg_zinf3 (lb ix)) (ub ix)).
+Definition absb3 (ix : zitv) : zitv :=
+  ZItv (min_zinf (lb ix) (isneg_zinf3 (ub ix))) (max_zinf (isneg_zinf3 (lb ix)) (ub ix)).
 
-Definition sgndefb (i : itv) : bool := (ispos_zinf (lb i) || isneg_zinf (ub i))%bool.
-Definition xnzb (i : itv) : bool := sgndefb i.
+Definition sgndefb (i : zitv) : bool := (ispos_zinf (lb i) || isneg_zinf (ub i))%bool.
+Definition xnzb (i : zitv) : bool := sgndefb i.
 
 (* ------------------------------------------------------------------ *)
 (** ** The propagator (mirrors zmul3)                                  *)
 (* ------------------------------------------------------------------ *)
 
-Definition zmul3 (s : store3) : store3 :=
+Definition zmul3 (s : zitv3) : zitv3 :=
   (* MUL *)
-  let x := inter3 (sx3 s) (mul_hull3 (sy3 s) (sz3 s)) in
+  let x := meet_zitv (x s) (mul_hull3 (sy3 s) (sz3 s)) in
   let xnz := xnzb x in
   (* z.mul_back_zero(x) *)
   let z0 := if xnz then neqz3 (sz3 s) else sz3 s in
   (* y.mul_back_nz(x, z) *)
-  let y0 := if sgndefb z0 then inter3 (sy3 s) (div_back3 x z0)
-            else if xnz then inter3 (sy3 s) (absb3 x)
+  let y0 := if sgndefb z0 then meet_zitv (sy3 s) (div_back3 x z0)
+            else if xnz then meet_zitv (sy3 s) (absb3 x)
             else sy3 s in
   (* y.mul_back_zero(x) *)
   let y1 := if xnz then neqz3 y0 else y0 in
   (* z.mul_back_nz(x, y) *)
-  let z1 := if sgndefb y1 then inter3 z0 (div_back3 x y1)
-            else if xnz then inter3 z0 (absb3 x)
+  let z1 := if sgndefb y1 then meet_zitv z0 (div_back3 x y1)
+            else if xnz then meet_zitv z0 (absb3 x)
             else z0 in
   (* MUL *)
-  let x2 := inter3 x (mul_hull3 y1 z1) in
-  St3 x2 y1 z1.
+  let x2 := meet_zitv x (mul_hull3 y1 z1) in
+  ZItv3 x2 y1 z1.
 
 (* ================================================================== *)
 (** ** Compositional structure
@@ -96,40 +96,40 @@ Definition msol (vx vy vz : Z) : Prop := vx = vy * vz.
 (* --- the six steps.  Each reads the (already refined) x-component from
        its input store, so the sequential data-flow is just composition. --- *)
 
-Definition step_mul (s : store3) : store3 :=          (* MUL: refine x by the y*z hull *)
-  St3 (inter3 (sx3 s) (mul_hull3 (sy3 s) (sz3 s))) (sy3 s) (sz3 s).
+Definition step_mul (s : zitv3) : zitv3 :=          (* MUL: refine x by the y*z hull *)
+  ZItv3 (meet_zitv (x s) (mul_hull3 (sy3 s) (sz3 s))) (sy3 s) (sz3 s).
 
-Definition step_zbz (s : store3) : store3 :=          (* z.mul_back_zero(x) *)
-  St3 (sx3 s) (sy3 s) (if xnzb (sx3 s) then neqz3 (sz3 s) else sz3 s).
+Definition step_zbz (s : zitv3) : zitv3 :=          (* z.mul_back_zero(x) *)
+  ZItv3 (x s) (sy3 s) (if xnzb (x s) then neqz3 (sz3 s) else sz3 s).
 
-Definition step_ybnz (s : store3) : store3 :=         (* y.mul_back_nz(x, z) *)
-  St3 (sx3 s)
-      (if sgndefb (sz3 s) then inter3 (sy3 s) (div_back3 (sx3 s) (sz3 s))
-       else if xnzb (sx3 s) then inter3 (sy3 s) (absb3 (sx3 s))
+Definition step_ybnz (s : zitv3) : zitv3 :=         (* y.mul_back_nz(x, z) *)
+  ZItv3 (x s)
+      (if sgndefb (sz3 s) then meet_zitv (sy3 s) (div_back3 (x s) (sz3 s))
+       else if xnzb (x s) then meet_zitv (sy3 s) (absb3 (x s))
        else sy3 s)
       (sz3 s).
 
-Definition step_ybz (s : store3) : store3 :=          (* y.mul_back_zero(x) *)
-  St3 (sx3 s) (if xnzb (sx3 s) then neqz3 (sy3 s) else sy3 s) (sz3 s).
+Definition step_ybz (s : zitv3) : zitv3 :=          (* y.mul_back_zero(x) *)
+  ZItv3 (x s) (if xnzb (x s) then neqz3 (sy3 s) else sy3 s) (sz3 s).
 
-Definition step_zbnz (s : store3) : store3 :=         (* z.mul_back_nz(x, y) *)
-  St3 (sx3 s) (sy3 s)
-      (if sgndefb (sy3 s) then inter3 (sz3 s) (div_back3 (sx3 s) (sy3 s))
-       else if xnzb (sx3 s) then inter3 (sz3 s) (absb3 (sx3 s))
+Definition step_zbnz (s : zitv3) : zitv3 :=         (* z.mul_back_nz(x, y) *)
+  ZItv3 (x s) (sy3 s)
+      (if sgndefb (sy3 s) then meet_zitv (sz3 s) (div_back3 (x s) (sy3 s))
+       else if xnzb (x s) then meet_zitv (sz3 s) (absb3 (x s))
        else sz3 s).
 
 (* the propagator as the six-fold composition *)
-Definition zmul3_pipe (s : store3) : store3 :=
+Definition zmul3_pipe (s : zitv3) : zitv3 :=
   step_mul (step_zbnz (step_ybz (step_ybnz (step_zbz (step_mul s))))).
 
 Lemma zmul3_is_pipe : forall s, zmul3 s = zmul3_pipe s.
 Proof. reflexivity. Qed.
 
 (* --- the three properties as predicates on store transformers --- *)
-Definition Sound (f : store3 -> store3) : Prop :=
-  forall s vx vy vz, in_store3 s vx vy vz -> msol vx vy vz -> in_store3 (f s) vx vy vz.
-Definition Reductive (f : store3 -> store3) : Prop := forall s, sle3 (f s) s.
-Definition Monotone (f : store3 -> store3) : Prop :=
+Definition Sound (f : zitv3 -> zitv3) : Prop :=
+  forall s vx vy vz, in_zitv3 s vx vy vz -> msol vx vy vz -> in_zitv3 (f s) vx vy vz.
+Definition Reductive (f : zitv3 -> zitv3) : Prop := forall s, sle3 (f s) s.
+Definition Monotone (f : zitv3 -> zitv3) : Prop :=
   forall s t, sle3 s t -> sle3 (f s) (f t).
 
 (* each property is closed under functional composition *)
@@ -141,9 +141,9 @@ Lemma Monotone_comp : forall f g, Monotone f -> Monotone g -> Monotone (fun s =>
 Proof. intros f g Hf Hg s t Hst. apply Hg, Hf, Hst. Qed.
 
 (* the zero-shave only moves bounds inward *)
-Lemma neqz3_ile3 : forall i, ile3 (neqz3 i) i.
+Lemma neqz3_ile3 : forall i, leq_zitv (neqz3 i) i.
 Proof.
-  intros [l u]; apply ile3_intro; cbn [lb ub].
+  intros [l u]; apply leq_zitv_intro; cbn [lb ub].
   - destruct l as [v| |]; cbn; try easy.
     destruct (v =? 0) eqn:E; cbn; [apply Z.eqb_eq in E|]; lia.
   - destruct u as [v| |]; cbn; try easy.
@@ -154,10 +154,10 @@ Qed.
 (** ** Reductivity of each step, composed                              *)
 (* ------------------------------------------------------------------ *)
 
-(* every step refines exactly one component (via [inter3]/[neqz3], both
+(* every step refines exactly one component (via [meet_zitv]/[neqz3], both
    below the original) and leaves the others fixed *)
 Ltac prove_reductive :=
-  intro s; apply sle3_intro; cbn [sx3 sy3 sz3];
+  intro s; apply sle3_intro; cbn [x sy3 sz3];
   repeat (match goal with |- context[if ?b then _ else _] => destruct b end);
   first [ apply ile3_refl | apply neqz3_ile3 | apply inter3_ile3_l ].
 
@@ -261,10 +261,10 @@ Proof.
 Qed.
 
 Lemma mul_hull3_sound : forall iy iz vy vz,
-  mem3 iy vy -> mem3 iz vz -> mem3 (mul_hull3 iy iz) (vy * vz).
+  contains iy vy -> contains iz vz -> contains (mul_hull3 iy iz) (vy * vz).
 Proof.
   intros [ly hy] [lz hz] vy vz [Hy1 Hy2] [Hz1 Hz2]; cbn [lb ub] in *.
-  unfold mul_hull3, mem3; cbn [lb ub].
+  unfold mul_hull3, contains; cbn [lb ub].
   split.
   - apply leq_zinf_trans with (b := min_zinf (mul_zinf ly (Fin vz)) (mul_zinf hy (Fin vz))).
     + apply min_zinf_mono; apply mul_zinf_z_lb; assumption.
@@ -274,9 +274,9 @@ Proof.
     + apply max_zinf_mono; apply mul_zinf_z_ub; assumption.
 Qed.
 
-Lemma neqz3_sound : forall i v, mem3 i v -> v <> 0 -> mem3 (neqz3 i) v.
+Lemma neqz3_sound : forall i v, contains i v -> v <> 0 -> contains (neqz3 i) v.
 Proof.
-  intros [l u] v [H1 H2] Hv; unfold neqz3, mem3 in *; cbn [lb ub] in *; split.
+  intros [l u] v [H1 H2] Hv; unfold neqz3, contains in *; cbn [lb ub] in *; split.
   - destruct l as [a| |]; cbn in *; try easy.
     destruct (Z.eqb_spec a 0); cbn; lia.
   - destruct u as [b| |]; cbn in *; try easy.
@@ -284,7 +284,7 @@ Proof.
 Qed.
 
 (* a sign-definite interval contains only strictly-signed values *)
-Lemma sgndefb_sign : forall i v, sgndefb i = true -> mem3 i v -> v < 0 \/ 0 < v.
+Lemma sgndefb_sign : forall i v, sgndefb i = true -> contains i v -> v < 0 \/ 0 < v.
 Proof.
   intros [l u] v Hs [H1 H2]; unfold sgndefb in Hs; cbn [lb ub] in *.
   apply Bool.orb_true_iff in Hs; destruct Hs as [Hs|Hs].
@@ -311,13 +311,13 @@ Qed.
 
 (* division-back soundness on exact quotients, sign-definite divisor *)
 Lemma div_back3_sound : forall ix ib vx vb vq,
-  mem3 ix vx -> mem3 ib vb -> sgndefb ib = true -> vx = vq * vb ->
-  mem3 (div_back3 ix ib) vq.
+  contains ix vx -> contains ib vb -> sgndefb ib = true -> vx = vq * vb ->
+  contains (div_back3 ix ib) vq.
 Proof.
   intros [lx hx] [llb hb] vx vb vq [Hx1 Hx2] [Hb1 Hb2] Hsgn Heq.
   unfold sgndefb in Hsgn; cbn [lb ub] in *.
   apply Bool.orb_true_iff in Hsgn.
-  unfold div_back3, mem3; cbn [lb ub].
+  unfold div_back3, contains; cbn [lb ub].
   destruct Hsgn as [Hp|Hn].
   - destruct llb as [l| |]; cbn in Hb1, Hp; [|destruct Hb1|discriminate].
     apply Z.ltb_lt in Hp.
@@ -369,10 +369,10 @@ Qed.
 
 (* |vq| <= |vx| window: vx = vq * vb with a non-zero integer vb *)
 Lemma absb3_sound : forall ix vx vb vq,
-  mem3 ix vx -> vx = vq * vb -> vb <> 0 -> mem3 (absb3 ix) vq.
+  contains ix vx -> vx = vq * vb -> vb <> 0 -> contains (absb3 ix) vq.
 Proof.
   intros [lx hx] vx vb vq [H1 H2] Heq Hb; cbn [lb ub] in *.
-  unfold absb3, mem3, isneg_zinf3; cbn [lb ub].
+  unfold absb3, contains, isneg_zinf3; cbn [lb ub].
   assert (Hd : vb <= -1 \/ 1 <= vb) by lia.
   split.
   - destruct lx as [a| |]; destruct hx as [B| |]; cbn in *; try easy;
@@ -386,16 +386,16 @@ Qed.
 Lemma step_mul_sound : Sound step_mul.
 Proof.
   unfold Sound, msol. intros s vx vy vz (Hx & Hy & Hz) Heq.
-  unfold step_mul, in_store3; cbn [sx3 sy3 sz3].
+  unfold step_mul, in_zitv3; cbn [x sy3 sz3].
   split; [ | split; [exact Hy | exact Hz] ].
-  apply mem3_inter; [exact Hx | rewrite Heq; apply mul_hull3_sound; assumption].
+  apply contains_inter; [exact Hx | rewrite Heq; apply mul_hull3_sound; assumption].
 Qed.
 
 Lemma step_zbz_sound : Sound step_zbz.
 Proof.
   unfold Sound, msol. intros s vx vy vz (Hx & Hy & Hz) Heq.
-  unfold step_zbz, in_store3; cbn [sx3 sy3 sz3]. split; [exact Hx | split; [exact Hy | ]].
-  destruct (xnzb (sx3 s)) eqn:E; [ | exact Hz ].
+  unfold step_zbz, in_zitv3; cbn [x sy3 sz3]. split; [exact Hx | split; [exact Hy | ]].
+  destruct (xnzb (x s)) eqn:E; [ | exact Hz ].
   unfold xnzb in E.
   assert (Hx0 : vx <> 0) by (destruct (sgndefb_sign _ vx E Hx); lia).
   assert (Hvz : vz <> 0) by (intro Hc; apply Hx0; rewrite Heq, Hc; ring).
@@ -405,21 +405,21 @@ Qed.
 Lemma step_ybnz_sound : Sound step_ybnz.
 Proof.
   unfold Sound, msol. intros s vx vy vz (Hx & Hy & Hz) Heq.
-  unfold step_ybnz, in_store3; cbn [sx3 sy3 sz3]. split; [exact Hx | split; [ | exact Hz]].
+  unfold step_ybnz, in_zitv3; cbn [x sy3 sz3]. split; [exact Hx | split; [ | exact Hz]].
   destruct (sgndefb (sz3 s)) eqn:Ez.
-  - apply mem3_inter; [exact Hy | eapply div_back3_sound; [exact Hx | exact Hz | exact Ez | exact Heq]].
-  - destruct (xnzb (sx3 s)) eqn:Ex; [ | exact Hy].
+  - apply contains_inter; [exact Hy | eapply div_back3_sound; [exact Hx | exact Hz | exact Ez | exact Heq]].
+  - destruct (xnzb (x s)) eqn:Ex; [ | exact Hy].
     unfold xnzb in Ex.
     assert (Hx0 : vx <> 0) by (destruct (sgndefb_sign _ vx Ex Hx); lia).
     assert (Hvz : vz <> 0) by (intro Hc; apply Hx0; rewrite Heq, Hc; ring).
-    apply mem3_inter; [exact Hy | eapply absb3_sound; [exact Hx | exact Heq | exact Hvz]].
+    apply contains_inter; [exact Hy | eapply absb3_sound; [exact Hx | exact Heq | exact Hvz]].
 Qed.
 
 Lemma step_ybz_sound : Sound step_ybz.
 Proof.
   unfold Sound, msol. intros s vx vy vz (Hx & Hy & Hz) Heq.
-  unfold step_ybz, in_store3; cbn [sx3 sy3 sz3]. split; [exact Hx | split; [ | exact Hz]].
-  destruct (xnzb (sx3 s)) eqn:E; [ | exact Hy].
+  unfold step_ybz, in_zitv3; cbn [x sy3 sz3]. split; [exact Hx | split; [ | exact Hz]].
+  destruct (xnzb (x s)) eqn:E; [ | exact Hy].
   unfold xnzb in E.
   assert (Hx0 : vx <> 0) by (destruct (sgndefb_sign _ vx E Hx); lia).
   assert (Hvy : vy <> 0) by (intro Hc; apply Hx0; rewrite Heq, Hc; ring).
@@ -430,14 +430,14 @@ Lemma step_zbnz_sound : Sound step_zbnz.
 Proof.
   unfold Sound, msol. intros s vx vy vz (Hx & Hy & Hz) Heq.
   assert (Heq' : vx = vz * vy) by (rewrite Heq; ring).
-  unfold step_zbnz, in_store3; cbn [sx3 sy3 sz3]. split; [exact Hx | split; [exact Hy | ]].
+  unfold step_zbnz, in_zitv3; cbn [x sy3 sz3]. split; [exact Hx | split; [exact Hy | ]].
   destruct (sgndefb (sy3 s)) eqn:Ey.
-  - apply mem3_inter; [exact Hz | eapply div_back3_sound; [exact Hx | exact Hy | exact Ey | exact Heq']].
-  - destruct (xnzb (sx3 s)) eqn:Ex; [ | exact Hz].
+  - apply contains_inter; [exact Hz | eapply div_back3_sound; [exact Hx | exact Hy | exact Ey | exact Heq']].
+  - destruct (xnzb (x s)) eqn:Ex; [ | exact Hz].
     unfold xnzb in Ex.
     assert (Hx0 : vx <> 0) by (destruct (sgndefb_sign _ vx Ex Hx); lia).
     assert (Hvy : vy <> 0) by (intro Hc; apply Hx0; rewrite Heq, Hc; ring).
-    apply mem3_inter; [exact Hz | eapply absb3_sound; [exact Hx | exact Heq' | exact Hvy]].
+    apply contains_inter; [exact Hz | eapply absb3_sound; [exact Hx | exact Heq' | exact Hvy]].
 Qed.
 
 Lemma zmul3_pipe_sound : Sound zmul3_pipe.
@@ -617,14 +617,14 @@ Qed.
 Lemma cdiv_abs_lb : forall n m, m <> 0 -> Z.min n (- n) <= cdiv n m.
 Proof. intros. unfold cdiv. pose proof (fdiv_abs_ub (-n) m H). lia. Qed.
 
-(* --- Zinf order / sign utilities --- *)
-Lemma ne_lo_le_hi : forall i, nonempty3b i = true -> leq_zinf (lb i) (ub i).
+(* --- zinf order / sign utilities --- *)
+Lemma ne_lo_le_hi : forall i, is_not_bot_zitv i = true -> leq_zinf (lb i) (ub i).
 Proof. intros [[a| |] [b| |]]; cbn; try easy. intro H; apply Z.leb_le in H; lia. Qed.
 
-Lemma ne_ile3 : forall i j, ile3 i j -> nonempty3b i = true -> nonempty3b j = true.
+Lemma ne_ile3 : forall i j, leq_zitv i j -> is_not_bot_zitv i = true -> is_not_bot_zitv j = true.
 Proof.
-  intros i j Hij Hne. apply (ile3_ne_inv i j Hne) in Hij as [Hl Hh].
-  exact (raw_ile_ne i j Hne Hl Hh).
+  intros i j Hij Hne. apply (all_is_geq_bot_zitv i j Hne) in Hij as [Hl Hh].
+  exact (contains_not_bot_implies_not_bot_zitv i j Hne Hl Hh).
 Qed.
 
 Ltac bsolve :=
@@ -638,9 +638,9 @@ Ltac bsolve :=
         | apply orb_true_iff; first [ left; apply Z.ltb_lt; lia | right; apply Z.ltb_lt; lia ]
         | apply Z.ltb_lt; lia ].
 
-Lemma sgndefb_dn : forall i j, ile3 i j -> nonempty3b i = true -> sgndefb j = true -> sgndefb i = true.
+Lemma sgndefb_dn : forall i j, leq_zitv i j -> is_not_bot_zitv i = true -> sgndefb j = true -> sgndefb i = true.
 Proof.
-  intros i j Hij Hne Hs. apply (ile3_ne_inv i j Hne) in Hij as [Hl Hh].
+  intros i j Hij Hne Hs. apply (all_is_geq_bot_zitv i j Hne) in Hij as [Hl Hh].
   destruct i as [[a| |] [b| |]], j as [[c| |] [d| |]]; unfold sgndefb in *; cbn in *;
   try easy; bsolve.
 Qed.
@@ -652,28 +652,28 @@ Proof.
 Qed.
 
 (* the zero-shave preserves emptiness (0-bounds only widen the gap) *)
-Lemma neqz3_empty : forall i, nonempty3b i = false -> nonempty3b (neqz3 i) = false.
+Lemma neqz3_empty : forall i, is_not_bot_zitv i = false -> is_not_bot_zitv (neqz3 i) = false.
 Proof.
-  intros [[a| |] [b| |]] H; unfold neqz3, nonempty3b in *; cbn in *;
+  intros [[a| |] [b| |]] H; unfold neqz3, is_not_bot_zitv in *; cbn in *;
     repeat (match goal with |- context[?v =? 0] => destruct (Z.eqb_spec v 0) end);
     subst; cbn in *; try discriminate; try reflexivity;
     apply Z.leb_gt in H; apply Z.leb_gt; lia.
 Qed.
 
-Lemma neqz3_mono : forall i j, ile3 i j -> ile3 (neqz3 i) (neqz3 j).
+Lemma neqz3_mono : forall i j, leq_zitv i j -> leq_zitv (neqz3 i) (neqz3 j).
 Proof.
-  intros i j Hij. destruct (nonempty3b i) eqn:Ei;
-    [ | apply ile3_bot; apply neqz3_empty; exact Ei ].
-  apply (ile3_ne_inv i j Ei) in Hij as [Hl Hh].
-  destruct i as [li ui], j as [lj uj]; unfold neqz3; apply ile3_intro; cbn [lb ub] in *.
+  intros i j Hij. destruct (is_not_bot_zitv i) eqn:Ei;
+    [ | apply bot_is_leq_all_zitv; apply neqz3_empty; exact Ei ].
+  apply (all_is_geq_bot_zitv i j Ei) in Hij as [Hl Hh].
+  destruct i as [li ui], j as [lj uj]; unfold neqz3; apply leq_zitv_intro; cbn [lb ub] in *.
   - destruct lj as [x| |], li as [y| |]; cbn in *; try easy;
     repeat match goal with |- context[?v =? 0] => destruct (Z.eqb_spec v 0) end; cbn; try easy; lia.
   - destruct ui as [x| |], uj as [y| |]; cbn in *; try easy;
     repeat match goal with |- context[?v =? 0] => destruct (Z.eqb_spec v 0) end; cbn; try easy; lia.
 Qed.
 
-Lemma zshave_mono : forall i j (b b' : bool), ile3 i j -> (b' = true -> b = true) ->
-  ile3 (if b then neqz3 i else i) (if b' then neqz3 j else j).
+Lemma zshave_mono : forall i j (b b' : bool), leq_zitv i j -> (b' = true -> b = true) ->
+  leq_zitv (if b then neqz3 i else i) (if b' then neqz3 j else j).
 Proof.
   intros i j b b' Hij Himp. destruct b' eqn:E.
   - rewrite (Himp eq_refl). apply neqz3_mono; assumption.
@@ -686,10 +686,10 @@ Lemma isneg_zinf3_anti : forall a b, leq_zinf a b -> leq_zinf (isneg_zinf3 b) (i
 Proof. intros [x| |] [y| |]; cbn; try easy; lia. Qed.
 
 (* absb3 does NOT preserve emptiness, so monotonicity is guarded by ne on the source *)
-Lemma absb3_mono : forall i j, nonempty3b i = true -> ile3 i j -> ile3 (absb3 i) (absb3 j).
+Lemma absb3_mono : forall i j, is_not_bot_zitv i = true -> leq_zitv i j -> leq_zitv (absb3 i) (absb3 j).
 Proof.
-  intros i j Hne Hij. apply (ile3_ne_inv i j Hne) in Hij as [Hl Hh].
-  apply ile3_intro; cbn [lb ub].
+  intros i j Hne Hij. apply (all_is_geq_bot_zitv i j Hne) in Hij as [Hl Hh].
+  apply leq_zitv_intro; cbn [lb ub].
   - apply min_zinf_mono; [assumption|apply isneg_zinf3_anti; assumption].
   - apply max_zinf_mono; [apply isneg_zinf3_anti; assumption|assumption].
 Qed.
@@ -735,7 +735,7 @@ Proof.
   intros i j u v Hu1 Hu2 Hv1 Hv2.
   apply leq_zinf_trans with (min_zinf (mul_zinf (lb i) v) (mul_zinf (ub i) v)).
   - apply leq_zinf_min_zinf_glb.
-    + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_l | apply mul_zinf_min_lb; assumption].
+    + eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l | apply mul_zinf_min_lb; assumption].
     + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r | apply mul_zinf_min_lb; assumption].
   - rewrite (mul_zinf_comm (lb i) v), (mul_zinf_comm (ub i) v), (mul_zinf_comm u v).
     apply mul_zinf_min_lb; assumption.
@@ -759,18 +759,18 @@ Proof.
 Qed.
 
 Lemma mul_hull3_mono_ne : forall i i' j j',
-  nonempty3b i = true -> nonempty3b j = true -> ile3 i i' -> ile3 j j' ->
-  ile3 (mul_hull3 i j) (mul_hull3 i' j').
+  is_not_bot_zitv i = true -> is_not_bot_zitv j = true -> leq_zitv i i' -> leq_zitv j j' ->
+  leq_zitv (mul_hull3 i j) (mul_hull3 i' j').
 Proof.
   intros i i' j j' Hnei Hnej Hii' Hjj'.
-  apply (ile3_ne_inv i i' Hnei) in Hii' as [Hli Hhi].
-  apply (ile3_ne_inv j j' Hnej) in Hjj' as [Hlj Hhj].
+  apply (all_is_geq_bot_zitv i i' Hnei) in Hii' as [Hli Hhi].
+  apply (all_is_geq_bot_zitv j j' Hnej) in Hjj' as [Hlj Hhj].
   pose proof (ne_lo_le_hi _ Hnei) as Hilh. pose proof (ne_lo_le_hi _ Hnej) as Hjlh.
   assert (Ma2 : leq_zinf (lb i) (ub i')) by (eapply leq_zinf_trans; eassumption).
   assert (Mb1 : leq_zinf (lb i') (ub i)) by (eapply leq_zinf_trans; eassumption).
   assert (Mc2 : leq_zinf (lb j) (ub j')) by (eapply leq_zinf_trans; eassumption).
   assert (Md1 : leq_zinf (lb j') (ub j)) by (eapply leq_zinf_trans; eassumption).
-  apply ile3_intro; unfold mul_hull3; cbn [lb ub].
+  apply leq_zitv_intro; unfold mul_hull3; cbn [lb ub].
   - apply leq_zinf_min_zinf_glb; apply leq_zinf_min_zinf_glb; apply mul_hull3_lb; assumption.
   - apply max_zinf_lub; apply max_zinf_lub; apply mul_hull3_ub; assumption.
 Qed.
@@ -831,7 +831,7 @@ Proof.
   intros ix' ib' u w Hs Hu1 Hu2 Hw1 Hw2.
   apply leq_zinf_trans with (min_zinf (cdiv_zinf (lb ix') w) (cdiv_zinf (ub ix') w)).
   - apply leq_zinf_min_zinf_glb.
-    + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_l | apply cdiv_zinf_den_lb; assumption].
+    + eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l | apply cdiv_zinf_den_lb; assumption].
     + eapply leq_zinf_trans; [apply min_zinf_leq_zinf_r | apply cdiv_zinf_den_lb; assumption].
   - apply cdiv_zinf_num_lb; try assumption. exact (sgn_mem ib' w Hs Hw1 Hw2).
 Qed.
@@ -854,30 +854,30 @@ Proof.
 Qed.
 
 Lemma div_back3_mono_ne : forall ix ix' ib ib',
-  nonempty3b ix = true -> nonempty3b ib = true ->
-  ile3 ix ix' -> ile3 ib ib' -> sgndefb ib' = true ->
-  ile3 (div_back3 ix ib) (div_back3 ix' ib').
+  is_not_bot_zitv ix = true -> is_not_bot_zitv ib = true ->
+  leq_zitv ix ix' -> leq_zitv ib ib' -> sgndefb ib' = true ->
+  leq_zitv (div_back3 ix ib) (div_back3 ix' ib').
 Proof.
   intros ix ix' ib ib' Hnex Hneb Hxx' Hbb' Hs.
-  apply (ile3_ne_inv ix ix' Hnex) in Hxx' as [Hxl Hxh].
-  apply (ile3_ne_inv ib ib' Hneb) in Hbb' as [Hbl Hbh].
+  apply (all_is_geq_bot_zitv ix ix' Hnex) in Hxx' as [Hxl Hxh].
+  apply (all_is_geq_bot_zitv ib ib' Hneb) in Hbb' as [Hbl Hbh].
   unfold sgndefb in Hs.
   pose proof (ne_lo_le_hi _ Hnex) as Hxlh. pose proof (ne_lo_le_hi _ Hneb) as Hblh.
   assert (Ma2 : leq_zinf (lb ix) (ub ix')) by (eapply leq_zinf_trans; eassumption).
   assert (Mb1 : leq_zinf (lb ix') (ub ix)) by (eapply leq_zinf_trans; eassumption).
   assert (Mc2 : leq_zinf (lb ib) (ub ib')) by (eapply leq_zinf_trans; eassumption).
   assert (Md1 : leq_zinf (lb ib') (ub ib)) by (eapply leq_zinf_trans; eassumption).
-  apply ile3_intro; unfold div_back3; cbn [lb ub].
+  apply leq_zitv_intro; unfold div_back3; cbn [lb ub].
   - apply leq_zinf_min_zinf_glb; apply leq_zinf_min_zinf_glb; apply div_back3_lb; assumption.
   - apply max_zinf_lub; apply max_zinf_lub; apply div_back3_ub; assumption.
 Qed.
 
 Lemma db_sub_absb : forall ix ix' ib,
-  nonempty3b ix = true -> nonempty3b ib = true -> sgndefb ib = true ->
-  ile3 ix ix' -> ile3 (div_back3 ix ib) (absb3 ix').
+  is_not_bot_zitv ix = true -> is_not_bot_zitv ib = true -> sgndefb ib = true ->
+  leq_zitv ix ix' -> leq_zitv (div_back3 ix ib) (absb3 ix').
 Proof.
   intros ix ix' ib Hnex Hneb Hs Hxx'.
-  apply (ile3_ne_inv ix ix' Hnex) in Hxx' as [Hxl Hxh].
+  apply (all_is_geq_bot_zitv ix ix' Hnex) in Hxx' as [Hxl Hxh].
   pose proof (ne_lo_le_hi _ Hnex) as Hxlh. pose proof (ne_lo_le_hi _ Hneb) as Hblh.
   assert (Ma2 : leq_zinf (lb ix) (ub ix')) by (eapply leq_zinf_trans; eassumption).
   assert (Mb1 : leq_zinf (lb ix') (ub ix)) by (eapply leq_zinf_trans; eassumption).
@@ -885,30 +885,30 @@ Proof.
     by (apply (sgn_mem ib); [assumption | apply leq_zinf_refl | assumption]).
   assert (W2 : (ispos_zinf (ub ib) || isneg_zinf (ub ib))%bool = true)
     by (apply (sgn_mem ib); [assumption | assumption | apply leq_zinf_refl]).
-  apply ile3_intro; unfold div_back3, absb3; cbn [lb ub].
+  apply leq_zitv_intro; unfold div_back3, absb3; cbn [lb ub].
   - apply leq_zinf_min_zinf_glb; apply leq_zinf_min_zinf_glb; apply cdiv_zinf_abs_lb; assumption.
   - apply max_zinf_lub; apply max_zinf_lub; apply fdiv_zinf_abs_ub; assumption.
 Qed.
 
 (* --- the guarded back-propagation step is monotone (source non-empty) --- *)
-Lemma zshave_ile3 : forall i (b : bool), ile3 (if b then neqz3 i else i) i.
+Lemma zshave_ile3 : forall i (b : bool), leq_zitv (if b then neqz3 i else i) i.
 Proof. intros i [|]; [apply neqz3_ile3 | apply ile3_refl]. Qed.
 
 Lemma mulback_ile3 : forall iy ix ib,
-  ile3 (if sgndefb ib then inter3 iy (div_back3 ix ib)
-        else if xnzb ix then inter3 iy (absb3 ix) else iy) iy.
+  leq_zitv (if sgndefb ib then meet_zitv iy (div_back3 ix ib)
+        else if xnzb ix then meet_zitv iy (absb3 ix) else iy) iy.
 Proof.
   intros. destruct (sgndefb ib); [apply inter3_ile3_l|].
   destruct (xnzb ix); [apply inter3_ile3_l | apply ile3_refl].
 Qed.
 
 Lemma mulback_mono : forall iy iy' ix ix' ib ib',
-  ile3 iy iy' -> ile3 ix ix' -> ile3 ib ib' ->
-  nonempty3b ix = true -> nonempty3b ib = true ->
-  ile3 (if sgndefb ib then inter3 iy (div_back3 ix ib)
-        else if xnzb ix then inter3 iy (absb3 ix) else iy)
-       (if sgndefb ib' then inter3 iy' (div_back3 ix' ib')
-        else if xnzb ix' then inter3 iy' (absb3 ix') else iy').
+  leq_zitv iy iy' -> leq_zitv ix ix' -> leq_zitv ib ib' ->
+  is_not_bot_zitv ix = true -> is_not_bot_zitv ib = true ->
+  leq_zitv (if sgndefb ib then meet_zitv iy (div_back3 ix ib)
+        else if xnzb ix then meet_zitv iy (absb3 ix) else iy)
+       (if sgndefb ib' then meet_zitv iy' (div_back3 ix' ib')
+        else if xnzb ix' then meet_zitv iy' (absb3 ix') else iy').
 Proof.
   intros iy iy' ix ix' ib ib' Hy Hx Hb Hnex Hneb.
   destruct (sgndefb ib') eqn:EB'.
@@ -928,14 +928,14 @@ Proof.
 Qed.
 
 (* --- every step preserves emptiness (refines one component, keeps others) --- *)
-Lemma empty_inter_l : forall i j, nonempty3b i = false -> nonempty3b (inter3 i j) = false.
+Lemma empty_inter_l : forall i j, is_not_bot_zitv i = false -> is_not_bot_zitv (meet_zitv i j) = false.
 Proof.
-  intros i j H. destruct (nonempty3b (inter3 i j)) eqn:E; [ apply ne_inter3 in E; congruence | reflexivity ].
+  intros i j H. destruct (is_not_bot_zitv (meet_zitv i j)) eqn:E; [ apply ne_inter3 in E; congruence | reflexivity ].
 Qed.
 
-Lemma step_mul_empty : forall s, ne_store3 s = false -> ne_store3 (step_mul s) = false.
+Lemma step_mul_empty : forall s, ne_zitv3 s = false -> ne_zitv3 (step_mul s) = false.
 Proof.
-  intros s H. unfold ne_store3, step_mul in *; cbn [sx3 sy3 sz3] in *.
+  intros s H. unfold ne_zitv3, step_mul in *; cbn [x sy3 sz3] in *.
   apply andb_false_iff in H as [H | H].
   - apply andb_false_iff in H as [H | H].
     + apply andb_false_iff; left; apply andb_false_iff; left; apply empty_inter_l; exact H.
@@ -943,50 +943,50 @@ Proof.
   - apply andb_false_iff; right; exact H.
 Qed.
 
-Lemma step_zbz_empty : forall s, ne_store3 s = false -> ne_store3 (step_zbz s) = false.
+Lemma step_zbz_empty : forall s, ne_zitv3 s = false -> ne_zitv3 (step_zbz s) = false.
 Proof.
-  intros s H. unfold ne_store3, step_zbz in *; cbn [sx3 sy3 sz3] in *.
+  intros s H. unfold ne_zitv3, step_zbz in *; cbn [x sy3 sz3] in *.
   apply andb_false_iff in H as [H | H].
   - apply andb_false_iff in H as [H | H].
     + apply andb_false_iff; left; apply andb_false_iff; left; exact H.
     + apply andb_false_iff; left; apply andb_false_iff; right; exact H.
   - apply andb_false_iff; right.
-    destruct (xnzb (sx3 s)); [ apply neqz3_empty; exact H | exact H ].
+    destruct (xnzb (x s)); [ apply neqz3_empty; exact H | exact H ].
 Qed.
 
-Lemma step_ybnz_empty : forall s, ne_store3 s = false -> ne_store3 (step_ybnz s) = false.
+Lemma step_ybnz_empty : forall s, ne_zitv3 s = false -> ne_zitv3 (step_ybnz s) = false.
 Proof.
-  intros s H. unfold ne_store3, step_ybnz in *; cbn [sx3 sy3 sz3] in *.
+  intros s H. unfold ne_zitv3, step_ybnz in *; cbn [x sy3 sz3] in *.
   apply andb_false_iff in H as [H | H].
   - apply andb_false_iff in H as [H | H].
     + apply andb_false_iff; left; apply andb_false_iff; left; exact H.
     + apply andb_false_iff; left; apply andb_false_iff; right.
       destruct (sgndefb (sz3 s)); [ apply empty_inter_l; exact H | ].
-      destruct (xnzb (sx3 s)); [ apply empty_inter_l; exact H | exact H ].
+      destruct (xnzb (x s)); [ apply empty_inter_l; exact H | exact H ].
   - apply andb_false_iff; right; exact H.
 Qed.
 
-Lemma step_ybz_empty : forall s, ne_store3 s = false -> ne_store3 (step_ybz s) = false.
+Lemma step_ybz_empty : forall s, ne_zitv3 s = false -> ne_zitv3 (step_ybz s) = false.
 Proof.
-  intros s H. unfold ne_store3, step_ybz in *; cbn [sx3 sy3 sz3] in *.
+  intros s H. unfold ne_zitv3, step_ybz in *; cbn [x sy3 sz3] in *.
   apply andb_false_iff in H as [H | H].
   - apply andb_false_iff in H as [H | H].
     + apply andb_false_iff; left; apply andb_false_iff; left; exact H.
     + apply andb_false_iff; left; apply andb_false_iff; right.
-      destruct (xnzb (sx3 s)); [ apply neqz3_empty; exact H | exact H ].
+      destruct (xnzb (x s)); [ apply neqz3_empty; exact H | exact H ].
   - apply andb_false_iff; right; exact H.
 Qed.
 
-Lemma step_zbnz_empty : forall s, ne_store3 s = false -> ne_store3 (step_zbnz s) = false.
+Lemma step_zbnz_empty : forall s, ne_zitv3 s = false -> ne_zitv3 (step_zbnz s) = false.
 Proof.
-  intros s H. unfold ne_store3, step_zbnz in *; cbn [sx3 sy3 sz3] in *.
+  intros s H. unfold ne_zitv3, step_zbnz in *; cbn [x sy3 sz3] in *.
   apply andb_false_iff in H as [H | H].
   - apply andb_false_iff in H as [H | H].
     + apply andb_false_iff; left; apply andb_false_iff; left; exact H.
     + apply andb_false_iff; left; apply andb_false_iff; right; exact H.
   - apply andb_false_iff; right.
     destruct (sgndefb (sy3 s)); [ apply empty_inter_l; exact H | ].
-    destruct (xnzb (sx3 s)); [ apply empty_inter_l; exact H | exact H ].
+    destruct (xnzb (x s)); [ apply empty_inter_l; exact H | exact H ].
 Qed.
 
 (* --- monotonicity of each step (empty source -> bottom; else raw) --- *)
@@ -994,10 +994,10 @@ Qed.
 Lemma step_mul_monotone : Monotone step_mul.
 Proof.
   unfold Monotone. intros s t Hst.
-  destruct (ne_store3 s) eqn:Es; [ | apply sle3_bot; apply step_mul_empty; exact Es ].
+  destruct (ne_zitv3 s) eqn:Es; [ | apply sle3_bot; apply step_mul_empty; exact Es ].
   apply (sle3_ne_inv s t Es) in Hst as (HX & HY & HZ).
-  destruct (ne_store3_parts s Es) as (Ex & Ey & Ez).
-  unfold step_mul; apply sle3_intro; cbn [sx3 sy3 sz3].
+  destruct (ne_zitv3_parts s Es) as (Ex & Ey & Ez).
+  unfold step_mul; apply sle3_intro; cbn [x sy3 sz3].
   - apply inter3_mono; [ exact HX | apply mul_hull3_mono_ne; [exact Ey | exact Ez | exact HY | exact HZ] ].
   - exact HY.
   - exact HZ.
@@ -1006,22 +1006,22 @@ Qed.
 Lemma step_zbz_monotone : Monotone step_zbz.
 Proof.
   unfold Monotone. intros s t Hst.
-  destruct (ne_store3 s) eqn:Es; [ | apply sle3_bot; apply step_zbz_empty; exact Es ].
+  destruct (ne_zitv3 s) eqn:Es; [ | apply sle3_bot; apply step_zbz_empty; exact Es ].
   apply (sle3_ne_inv s t Es) in Hst as (HX & HY & HZ).
-  destruct (ne_store3_parts s Es) as (Ex & Ey & Ez).
-  unfold step_zbz; apply sle3_intro; cbn [sx3 sy3 sz3].
+  destruct (ne_zitv3_parts s Es) as (Ex & Ey & Ez).
+  unfold step_zbz; apply sle3_intro; cbn [x sy3 sz3].
   - exact HX.
   - exact HY.
-  - apply zshave_mono; [ exact HZ | unfold xnzb; exact (sgndefb_dn (sx3 s) (sx3 t) HX Ex) ].
+  - apply zshave_mono; [ exact HZ | unfold xnzb; exact (sgndefb_dn (x s) (x t) HX Ex) ].
 Qed.
 
 Lemma step_ybnz_monotone : Monotone step_ybnz.
 Proof.
   unfold Monotone. intros s t Hst.
-  destruct (ne_store3 s) eqn:Es; [ | apply sle3_bot; apply step_ybnz_empty; exact Es ].
+  destruct (ne_zitv3 s) eqn:Es; [ | apply sle3_bot; apply step_ybnz_empty; exact Es ].
   apply (sle3_ne_inv s t Es) in Hst as (HX & HY & HZ).
-  destruct (ne_store3_parts s Es) as (Ex & Ey & Ez).
-  unfold step_ybnz; apply sle3_intro; cbn [sx3 sy3 sz3].
+  destruct (ne_zitv3_parts s Es) as (Ex & Ey & Ez).
+  unfold step_ybnz; apply sle3_intro; cbn [x sy3 sz3].
   - exact HX.
   - apply mulback_mono; [ exact HY | exact HX | exact HZ | exact Ex | exact Ez ].
   - exact HZ.
@@ -1030,22 +1030,22 @@ Qed.
 Lemma step_ybz_monotone : Monotone step_ybz.
 Proof.
   unfold Monotone. intros s t Hst.
-  destruct (ne_store3 s) eqn:Es; [ | apply sle3_bot; apply step_ybz_empty; exact Es ].
+  destruct (ne_zitv3 s) eqn:Es; [ | apply sle3_bot; apply step_ybz_empty; exact Es ].
   apply (sle3_ne_inv s t Es) in Hst as (HX & HY & HZ).
-  destruct (ne_store3_parts s Es) as (Ex & Ey & Ez).
-  unfold step_ybz; apply sle3_intro; cbn [sx3 sy3 sz3].
+  destruct (ne_zitv3_parts s Es) as (Ex & Ey & Ez).
+  unfold step_ybz; apply sle3_intro; cbn [x sy3 sz3].
   - exact HX.
-  - apply zshave_mono; [ exact HY | unfold xnzb; exact (sgndefb_dn (sx3 s) (sx3 t) HX Ex) ].
+  - apply zshave_mono; [ exact HY | unfold xnzb; exact (sgndefb_dn (x s) (x t) HX Ex) ].
   - exact HZ.
 Qed.
 
 Lemma step_zbnz_monotone : Monotone step_zbnz.
 Proof.
   unfold Monotone. intros s t Hst.
-  destruct (ne_store3 s) eqn:Es; [ | apply sle3_bot; apply step_zbnz_empty; exact Es ].
+  destruct (ne_zitv3 s) eqn:Es; [ | apply sle3_bot; apply step_zbnz_empty; exact Es ].
   apply (sle3_ne_inv s t Es) in Hst as (HX & HY & HZ).
-  destruct (ne_store3_parts s Es) as (Ex & Ey & Ez).
-  unfold step_zbnz; apply sle3_intro; cbn [sx3 sy3 sz3].
+  destruct (ne_zitv3_parts s Es) as (Ex & Ey & Ez).
+  unfold step_zbnz; apply sle3_intro; cbn [x sy3 sz3].
   - exact HX.
   - exact HY.
   - apply mulback_mono; [ exact HZ | exact HX | exact HY | exact Ex | exact Ey ].
@@ -1066,8 +1066,8 @@ Qed.
 (* ------------------------------------------------------------------ *)
 
 Theorem zmul3_soundness : forall s vx vy vz,
-  in_store3 s vx vy vz -> vx = vy * vz ->
-  in_store3 (zmul3 s) vx vy vz.
+  in_zitv3 s vx vy vz -> vx = vy * vz ->
+  in_zitv3 (zmul3 s) vx vy vz.
 Proof. intros s vx vy vz Hin Heq. rewrite zmul3_is_pipe. exact (zmul3_pipe_sound s vx vy vz Hin Heq). Qed.
 
 Theorem zmul3_reductive : forall s, sle3 (zmul3 s) s.
@@ -1079,16 +1079,16 @@ Theorem zmul3_monotone : forall s t, sle3 s t -> sle3 (zmul3 s) (zmul3 t).
 Proof. intros s t Hst. rewrite !zmul3_is_pipe. apply zmul3_pipe_monotone; exact Hst. Qed.
 
 Theorem zmul3_singleton_complete : forall s vx vy vz,
-  sx3 s = Itv (Fin vx) (Fin vx) ->
-  sy3 s = Itv (Fin vy) (Fin vy) ->
-  sz3 s = Itv (Fin vz) (Fin vz) ->
-  ne_store3 (zmul3 s) = true ->
+  x s = ZItv (Fin vx) (Fin vx) ->
+  sy3 s = ZItv (Fin vy) (Fin vy) ->
+  sz3 s = ZItv (Fin vz) (Fin vz) ->
+  ne_zitv3 (zmul3 s) = true ->
   vx = vy * vz.
 Proof.
   intros s vx vy vz Hx Hy Hz Hne.
   unfold zmul3 in Hne; cbv zeta in Hne.
   rewrite Hx, Hy, Hz in Hne.
-  unfold ne_store3 in Hne.
+  unfold ne_zitv3 in Hne.
   apply Bool.andb_true_iff in Hne as [Hne _].
   apply Bool.andb_true_iff in Hne as [Hnex _].
   (* the x-component is nested inter3s of the singleton hull *)

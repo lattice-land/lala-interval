@@ -1,12 +1,13 @@
 -R . LalaInterval
 Concrete.v
-Zinf.v
-itv.v
+ZInf.v
+ZItv.v
+ZItv3.v
+AddZItv3.v
 itv_lattice.v
 store_lattice.v
 cartesian_propagators.v
 galois_props.v
-zadd.v
 zmul.v
 zmod.v
 zdiv.v
