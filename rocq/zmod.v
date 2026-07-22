@@ -52,11 +52,11 @@ Qed.
 (* Upper bound on |v| for any v in an interval, over zinf (infinity-aware). *)
 Definition zabs_ub (i : zitv) : zinf := max_zinf (isneg_zinf3 (lb i)) (ub i).
 
-Lemma zabs_ub_sound : forall i v, contains i v -> leq_zinf (Fin (Z.abs v)) (zabs_ub i).
+Lemma zabs_ub_sound : forall i v, in_zitv i v -> leq_zinf (Fin (Z.abs v)) (zabs_ub i).
 Proof.
   intros i v [Hlo Hhi]. unfold zabs_ub.
   assert (E : Fin (Z.abs v) = max_zinf (isneg_zinf3 (Fin v)) (Fin v)) by (cbn; f_equal; lia).
-  rewrite E. apply max_zinf_mono; [ apply isneg_zinf3_anti; exact Hlo | exact Hhi ].
+  rewrite E. apply max_zinf_monotone; [ apply isneg_zinf3_anti; exact Hlo | exact Hhi ].
 Qed.
 
 (* The remainder envelope for [x] given [y] and [z]:
@@ -68,7 +68,7 @@ Definition tmod_env (sy sz : zitv) : zitv :=
        (min_zinf (max_zinf (ub sy) (Fin 0)) (sub_zinf (zabs_ub sz) (Fin 1))).
 
 Lemma contains_tmod_env : forall sy sz vy vz,
-  vz <> 0 -> contains sy vy -> contains sz vz -> contains (tmod_env sy sz) (Z.rem vy vz).
+  vz <> 0 -> in_zitv sy vy -> in_zitv sz vz -> in_zitv (tmod_env sy sz) (Z.rem vy vz).
 Proof.
   intros sy sz vy vz Hz [Hylo Hyhi] Hsz.
   pose proof (zabs_ub_sound sz vz Hsz) as Hzabs.
@@ -89,7 +89,7 @@ Proof.
     + apply (leq_zinf_trans _ (lb sy)); [ apply leq_zinf_min_zinf_l | ].
       apply (leq_zinf_trans _ (Fin vy)); [ exact Hylo | ].
       cbn. pose proof (rem_ge_dividend vy vz Hz Hy). lia.
-    + apply (leq_zinf_trans _ (Fin 0)); [ apply min_zinf_leq_zinf_r | ].
+    + apply (leq_zinf_trans _ (Fin 0)); [ apply leq_zinf_min_zinf_r | ].
       cbn. pose proof (Z.rem_nonneg vy vz Hz ltac:(lia)). lia.
   - unfold tmod_env; cbn [ub]. apply leq_zinf_min_zinf_glb; [ | exact Hmagu ].
     destruct (Z.le_gt_cases 0 vy) as [Hy|Hy].
@@ -107,13 +107,13 @@ Qed.
 (* Direct modulus narrowing: clip x to the remainder envelope and force z <> 0
    (via [neqz3], shaving a 0-bound). y is untouched by the direct step. *)
 Definition ztmod (s : zitv3) : zitv3 :=
-  ZItv3 (meet_zitv (x s) (tmod_env (sy3 s) (sz3 s))) (sy3 s) (neqz3 (sz3 s)).
+  ZItv3 (meet_zitv (x s) (tmod_env (y s) (z s))) (y s) (neqz3 (z s)).
 
 Theorem ztmod_soundness : forall s vx vy vz,
   in_zitv3 s vx vy vz -> tmsol vx vy vz -> in_zitv3 (ztmod s) vx vy vz.
 Proof.
   intros s vx vy vz (Hx & Hy & Hz) [Hnz Heq]. subst vx.
-  unfold ztmod, in_zitv3; cbn [x sy3 sz3].
+  unfold ztmod, in_zitv3; cbn [x y z].
   split; [ | split ].
   - apply contains_inter; [ exact Hx | apply contains_tmod_env; assumption ].
   - exact Hy.

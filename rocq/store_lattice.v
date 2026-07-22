@@ -22,7 +22,7 @@ Context {V : Type}.
 Definition store := V -> zitv.
 
 (* concretization: an assignment [rho] is in [s] iff pointwise in range. *)
-Definition in_store (s : store) (rho : V -> Z) : Prop := forall x, contains (s x) (rho x).
+Definition in_store (s : store) (rho : V -> Z) : Prop := forall x, in_zitv (s x) (rho x).
 
 (* a store is non-failed iff every variable is non-empty. *)
 Definition ne_store (s : store) : Prop := forall x, is_not_bot_zitv (s x) = true.
@@ -51,7 +51,7 @@ Proof.
 Qed.
 
 Lemma sle_refl : forall a, sle a a.
-Proof. intro a; apply sle_raw; intro x; apply ile3_refl. Qed.
+Proof. intro a; apply sle_raw; intro x; apply leq_zitv_reflexivity. Qed.
 
 Lemma sle_trans : forall a b c, sle a b -> sle b c -> sle a c.
 Proof.
@@ -60,7 +60,7 @@ Proof.
   pose proof (sle_ne_inv a b Ha H1) as Hab.
   pose proof (ne_store_mono a b Ha Hab) as Hb.
   pose proof (sle_ne_inv b c Hb H2) as Hbc.
-  apply sle_raw. intro x. eapply ile3_trans; [ apply Hab | apply Hbc ].
+  apply sle_raw. intro x. eapply leq_zitv_transitivity; [ apply Hab | apply Hbc ].
 Qed.
 
 Lemma seq_refl : forall a, seq a a. Proof. intro a; split; apply sle_refl. Qed.
@@ -100,7 +100,7 @@ Proof.
       apply (sle_ne_inv s u Hnes (Hu s Hs)).
   - exists (fun _ => ibot). split.
     + intros s Hs. apply sle_bot. intro Hns. apply Hallbot. exists s. split; [ exact Hs | exact Hns ].
-    + intros u Hu. apply sle_raw. intro x. apply ile3_ibot.
+    + intros u Hu. apply sle_raw. intro x. apply leq_zitv3_ibot.
 Qed.
 
 (* meet = pointwise interval glb over ALL members; bottom if any member is
@@ -110,7 +110,7 @@ Proof.
   intro S.
   destruct (classic (exists e, S e /\ ~ ne_store e)) as [[e [He Hee]] | Hallne].
   - exists (fun _ => ibot). split.
-    + intros s Hs. apply sle_raw. intro x. apply ile3_ibot.
+    + intros s Hs. apply sle_raw. intro x. apply leq_zitv3_ibot.
     + intros l Hl. apply sle_bot. intro Hnl.
       apply Hee. apply (ne_store_mono l e Hnl). apply (sle_ne_inv l e Hnl (Hl e He)).
   - assert (Hpt : forall x, exists mx, is_iglb (fun i => exists s, S s /\ s x = i) mx)

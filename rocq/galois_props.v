@@ -14,7 +14,7 @@
       a candidate propagator on the whole follows from best-ness on the
       covering pieces.  The completeness-only inequality [complete_composes]
       is the form used to factor case-split propagators (e.g. zdiv's
-      positive/negative divisor slices joined by [join4]).
+      positive/negative divisor slices joined by [join_zitv3]).
 
     (The paper's Prop 3 -- complete-on-singleton is obtained for free -- is
     a separate statement, not formalized here.)

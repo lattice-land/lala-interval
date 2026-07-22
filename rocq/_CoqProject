@@ -4,11 +4,11 @@ ZInf.v
 ZItv.v
 ZItv3.v
 AddZItv3.v
+DivZItv3.v
 itv_lattice.v
 store_lattice.v
 cartesian_propagators.v
 galois_props.v
 zmul.v
 zmod.v
-zdiv.v
 equivcpp.v
