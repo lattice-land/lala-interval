@@ -2,7 +2,7 @@
 
     Rocq model of the C++ [ztdiv_4]/[zfdiv_4]/[zcdiv_4]/[zediv_4]
     (zinterval.hpp): one-pass slice decomposition.  Only two positive-slice
-    solvers are needed ([fdiv_pos_z_zitv3] and [ztdiv_pos3], mirroring the C++
+    solvers are needed ([fdiv_pos_z_zitv3] and [tdiv_pos_z_zitv3], mirroring the C++
     [zfdiv_pos]/[ztdiv_pos]); every other case reduces to them through the
     mirror identities
       trunc(y/z) = -trunc(y/(-z))        floor(y/z) = floor((-y)/(-z))
@@ -93,12 +93,9 @@ Definition slice_contains (P : Z -> Z -> Z -> Prop) (s t : zitv3) : Prop :=
   forall vx vy vz, in_zitv3 s vx vy vz -> P vx vy vz -> 1 <= vz ->
   in_zitv3 t vx vy vz.
 
-(* fdiv_pos_z_zitv3_completeness and fdiv_pos_z_zitv3_not_bot_feasible are proved below, after tpos_best,
-   where all their support lemmas are available. *)
-
 (* ================================================================== *)
 (** Support lemmas for the truncated positive-slice soundness proof
-    ([tpos_sound]).  Reusable arithmetic bridges (floor/ceil vs Z.quot),
+    ([tdiv_pos_z_zitv3_soundness]).  Reusable arithmetic bridges (floor/ceil vs Z.quot),
     the band lemmas, corner-hull brackets, and step combinators *)
 (* ================================================================== *)
 
@@ -412,7 +409,7 @@ Proof.
   - cbn [lb]; exact H.
 Qed.
 
-Theorem fdiv_pos_z_soundness : forall s vx vy vz,
+Theorem fdiv_pos_z_zitv3_soundness : forall s vx vy vz,
   in_zitv3 s vx vy vz -> fdiv_rel vx vy vz -> 1 <= vz ->
   in_zitv3 (fdiv_pos_z_zitv3 s) vx vy vz.
 Proof.
@@ -610,13 +607,13 @@ Proof.
     assert (Hmir : in_zitv3 (neg_yz_zitv3 s) vx (- vy) (- vz)) by (apply in_mir_yz; exact Hin).
     assert (Hsmir : fdiv_rel vx (- vy) (- vz)).
     { split; [lia | ]. rewrite Hq. rewrite Z.div_opp_opp by lia. reflexivity. }
-    pose proof (fdiv_pos_z_soundness (neg_yz_zitv3 s) vx (- vy) (- vz) Hmir Hsmir ltac:(lia)) as Hp.
+    pose proof (fdiv_pos_z_zitv3_soundness (neg_yz_zitv3 s) vx (- vy) (- vz) Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_mir_yz (fdiv_pos_z_zitv3 (neg_yz_zitv3 s)) vx (- vy) (- vz) Hp) as Hback.
     rewrite !Z.opp_involutive in Hback. exact Hback.
   - exfalso; apply Hnz; exact Hz0.
   - (* vz >= 1 : positive slice directly *)
     apply in_join4_l.
-    apply fdiv_pos_z_soundness; [exact Hin | split; [exact Hnz | exact Hq] | lia].
+    apply fdiv_pos_z_zitv3_soundness; [exact Hin | split; [exact Hnz | exact Hq] | lia].
 Qed.
 
 (* ================================================================== *)
@@ -653,7 +650,7 @@ Proof.
     assert (Hmir : in_zitv3 (neg_xz_zitv3 s) (- vx) vy (- vz)) by (apply in_neg_xz_zitv3; exact Hin).
     assert (Hsmir : fdiv_rel (- vx) vy (- vz)).
     { split; [lia | ]. rewrite Hq. rewrite Z.opp_involutive. apply div_opp_num_den; lia. }
-    pose proof (fdiv_pos_z_soundness (neg_xz_zitv3 s) (- vx) vy (- vz) Hmir Hsmir ltac:(lia)) as Hp.
+    pose proof (fdiv_pos_z_zitv3_soundness (neg_xz_zitv3 s) (- vx) vy (- vz) Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_neg_xz_zitv3 (fdiv_pos_z_zitv3 (neg_xz_zitv3 s)) (- vx) vy (- vz) Hp) as Hb.
     rewrite !Z.opp_involutive in Hb. exact Hb.
   - exfalso; apply Hnz; exact Hz0.
@@ -662,7 +659,7 @@ Proof.
     assert (Hmir : in_zitv3 (neg_xy_zitv3 s) (- vx) (- vy) vz) by (apply in_neg_xy; exact Hin).
     assert (Hsmir : fdiv_rel (- vx) (- vy) vz).
     { split; [lia | ]. rewrite Hq. lia. }
-    pose proof (fdiv_pos_z_soundness (neg_xy_zitv3 s) (- vx) (- vy) vz Hmir Hsmir ltac:(lia)) as Hp.
+    pose proof (fdiv_pos_z_zitv3_soundness (neg_xy_zitv3 s) (- vx) (- vy) vz Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_neg_xy (fdiv_pos_z_zitv3 (neg_xy_zitv3 s)) (- vx) (- vy) vz Hp) as Hb.
     rewrite !Z.opp_involutive in Hb. exact Hb.
 Qed.
@@ -682,14 +679,14 @@ Proof.
     assert (Hmir : in_zitv3 (neg_xz_zitv3 s) (- vx) vy (- vz)) by (apply in_neg_xz_zitv3; exact Hin).
     assert (Hsmir : fdiv_rel (- vx) vy (- vz)).
     { split; [lia | ]. rewrite Hq. rewrite Z.opp_involutive. apply div_opp_num_den; lia. }
-    pose proof (fdiv_pos_z_soundness (neg_xz_zitv3 s) (- vx) vy (- vz) Hmir Hsmir ltac:(lia)) as Hp.
+    pose proof (fdiv_pos_z_zitv3_soundness (neg_xz_zitv3 s) (- vx) vy (- vz) Hmir Hsmir ltac:(lia)) as Hp.
     pose proof (in_neg_xz_zitv3 (fdiv_pos_z_zitv3 (neg_xz_zitv3 s)) (- vx) vy (- vz) Hp) as Hb.
     rewrite !Z.opp_involutive in Hb. exact Hb.
   - exfalso; apply Hnz; exact Hz0.
   - (* vz >= 1 : ediv = floor = y/z, positive slice directly *)
     rewrite (proj2 (Z.ltb_lt 0 vz) ltac:(lia)) in Hq.  (* 0<?vz = true -> vx = vy/vz *)
     apply in_join4_l.
-    apply fdiv_pos_z_soundness; [exact Hin | split; [exact Hnz | exact Hq] | lia].
+    apply fdiv_pos_z_zitv3_soundness; [exact Hin | split; [exact Hnz | exact Hq] | lia].
 Qed.
 
 (* ------------------------------------------------------------------ *)
@@ -1187,7 +1184,7 @@ Proof.
   intros s Hfeas t Hct.
   destruct Hfeas as (fx & fy & fz & Hfin & Hfts & Hfz1).
   assert (HneO : is_not_bot_zitv3 (fdiv_pos_z_zitv3 s) = true).
-  { eapply nonempty_is_not_bot_zitv3. apply fdiv_pos_z_soundness; [exact Hfin | exact Hfts | exact Hfz1]. }
+  { eapply nonempty_is_not_bot_zitv3. apply fdiv_pos_z_zitv3_soundness; [exact Hfin | exact Hfts | exact Hfz1]. }
   destruct Hfin as (Hfxm & Hfym & Hfzm).
   assert (Hx : is_not_bot_zitv (x s) = true) by (eapply nonempty_is_not_bot_zitv; exact Hfxm).
   assert (Hy : is_not_bot_zitv (y s) = true) by (eapply nonempty_is_not_bot_zitv; exact Hfym).
@@ -2096,17 +2093,10 @@ Proof. exact (proj2 (proj2 (closure_laws ediv_rel ediv_zitv3 ediv_zitv3_soundnes
     Built from the floor positive-slice solver [fdiv_pos_z_zitv3] and a four-way
     sign-quadrant decomposition (y-sign x z-sign); soundness/completeness
     compose over the disjunction (Prop 4).  The OLD direct tymin/tymax proof
-    of the same operation lives in old_tdiv.v ([ztdiv4]). *)
+    of the same operation lives in old_tdiv.v ([tdiv_fast_zitv3]). *)
 (* ================================================================== *)
 
-Definition tsol (x y z : Z) : Prop := z <> 0 /\ x = Z.quot y z.
-
-Definition pos_y (s : zitv3) : zitv3 :=
-  ZItv3 (x s) (meet_zitv (y s) (ZItv (Fin 0) Pinf)) (z s).
-Definition neg_y (s : zitv3) : zitv3 :=
-  ZItv3 (x s) (meet_zitv (y s) (ZItv Ninf (Fin 0))) (z s).
-
-Definition ztdivq (s : zitv3) : zitv3 :=
+Definition tdiv_zitv3 (s : zitv3) : zitv3 :=
   if negb (is_not_bot_zitv3 s) then s
   else join_zitv3 (fdiv_pos_z_zitv3 (pos_y s))
        (join_zitv3 (neg_xz_zitv3 (fdiv_pos_z_zitv3 (neg_xz_zitv3 (pos_y s))))
@@ -2120,25 +2110,25 @@ Definition ztdivq (s : zitv3) : zitv3 :=
 Lemma quot_eq_div : forall b c, 0 <= b -> 0 < c -> Z.quot b c = Z.div b c.
 Proof. intros; apply Z.quot_div_nonneg; lia. Qed.
 
-(* tsol at a point => fdiv_rel on the (mirrored) positive slice. *)
-Lemma tsol_q1 : forall x y z, tsol x y z -> 0 <= y -> 0 < z -> fdiv_rel x y z.
+(* tdiv_rel at a point => fdiv_rel on the (mirrored) positive slice. *)
+Lemma tdiv_rel_q1 : forall x y z, tdiv_rel x y z -> 0 <= y -> 0 < z -> fdiv_rel x y z.
 Proof. intros x y z [Hnz Hq] Hy Hz. split; [exact Hnz | rewrite Hq; apply quot_eq_div; lia]. Qed.
 
-Lemma tsol_q2 : forall x y z, tsol x y z -> 0 <= y -> z < 0 -> fdiv_rel (- x) y (- z).
+Lemma tdiv_rel_q2 : forall x y z, tdiv_rel x y z -> 0 <= y -> z < 0 -> fdiv_rel (- x) y (- z).
 Proof.
   intros x y z [Hnz Hq] Hy Hz. split; [lia | ].
   rewrite <- (quot_eq_div y (- z)) by lia.
   rewrite Z.quot_opp_r by lia. rewrite <- Hq. reflexivity.
 Qed.
 
-Lemma tsol_q3 : forall x y z, tsol x y z -> y <= 0 -> 0 < z -> fdiv_rel (- x) (- y) z.
+Lemma tdiv_rel_q3 : forall x y z, tdiv_rel x y z -> y <= 0 -> 0 < z -> fdiv_rel (- x) (- y) z.
 Proof.
   intros x y z [Hnz Hq] Hy Hz. split; [lia | ].
   rewrite <- (quot_eq_div (- y) z) by lia.
   rewrite Z.quot_opp_l by lia. rewrite <- Hq. reflexivity.
 Qed.
 
-Lemma tsol_q4 : forall x y z, tsol x y z -> y <= 0 -> z < 0 -> fdiv_rel x (- y) (- z).
+Lemma tdiv_rel_q4 : forall x y z, tdiv_rel x y z -> y <= 0 -> z < 0 -> fdiv_rel x (- y) (- z).
 Proof.
   intros x y z [Hnz Hq] Hy Hz. split; [lia | ].
   rewrite <- (quot_eq_div (- y) (- z)) by lia.
@@ -2146,25 +2136,25 @@ Proof.
   rewrite <- Hq. lia.
 Qed.
 
-(* fdiv_rel on the (mirrored) positive slice => tsol at the original point. *)
-Lemma sol_q1 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tsol a b c.
+(* fdiv_rel on the (mirrored) positive slice => tdiv_rel at the original point. *)
+Lemma sol_q1 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tdiv_rel a b c.
 Proof. intros a b c [Hnz Hd] Hb Hc. split; [lia | rewrite Hd; symmetry; apply quot_eq_div; lia]. Qed.
 
-Lemma sol_q2 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tsol (- a) b (- c).
+Lemma sol_q2 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tdiv_rel (- a) b (- c).
 Proof.
   intros a b c [Hnz Hd] Hb Hc. split; [lia | ].
   rewrite Z.quot_opp_r by lia. rewrite (quot_eq_div b c) by lia.
   rewrite <- Hd. reflexivity.
 Qed.
 
-Lemma sol_q3 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tsol (- a) (- b) c.
+Lemma sol_q3 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tdiv_rel (- a) (- b) c.
 Proof.
   intros a b c [Hnz Hd] Hb Hc. split; [lia | ].
   rewrite Z.quot_opp_l by lia. rewrite (quot_eq_div b c) by lia.
   rewrite <- Hd. reflexivity.
 Qed.
 
-Lemma sol_q4 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tsol a (- b) (- c).
+Lemma sol_q4 : forall a b c, fdiv_rel a b c -> 0 <= b -> 1 <= c -> tdiv_rel a (- b) (- c).
 Proof.
   intros a b c [Hnz Hd] Hb Hc. split; [lia | ].
   rewrite Z.quot_opp_l by lia. rewrite Z.quot_opp_r by lia.
@@ -2265,7 +2255,7 @@ Proof.
     solve [ apply leq_zinf_refl | apply leq_zinf_max_zinf_l | apply leq_zinf_min_zinf_l ].
 Qed.
 
-Lemma zfdiv_pos3_ne_input : forall s,
+Lemma fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw : forall s,
   is_not_bot_zitv3 (fdiv_pos_z_zitv3 s) = true ->
   is_not_bot_zitv (x s) = true /\ is_not_bot_zitv (y s) = true.
 Proof.
@@ -2280,41 +2270,41 @@ Qed.
 (** ** (C) Soundness                                                   *)
 (* ================================================================== *)
 
-Theorem ztdivq_soundness : forall s vx vy vz,
-  in_zitv3 s vx vy vz -> tsol vx vy vz -> in_zitv3 (ztdivq s) vx vy vz.
+Theorem tdiv_zitv3_soundness : forall s vx vy vz,
+  in_zitv3 s vx vy vz -> tdiv_rel vx vy vz -> in_zitv3 (tdiv_zitv3 s) vx vy vz.
 Proof.
   intros s vx vy vz Hin Hts.
   assert (Hne : is_not_bot_zitv3 s = true) by (eapply nonempty_is_not_bot_zitv3; exact Hin).
-  unfold ztdivq. rewrite Hne. cbn [negb].
+  unfold tdiv_zitv3. rewrite Hne. cbn [negb].
   destruct (Z_le_gt_dec 0 vy) as [Hyp|Hyn];
     destruct (Z.lt_total vz 0) as [Hzn|[Hz0|Hzp]].
   - (* 0<=vy, vz<0 : Q2 *)
     apply in_join4_r. apply in_join4_l.
     replace vx with (- - vx) by lia. replace vz with (- - vz) by lia.
-    apply in_neg_xz_zitv3. apply fdiv_pos_z_soundness.
+    apply in_neg_xz_zitv3. apply fdiv_pos_z_zitv3_soundness.
     + apply in_neg_xz_zitv3. apply contains_pos_y; [exact Hin | lia].
-    + apply tsol_q2; [exact Hts | lia | lia].
+    + apply tdiv_rel_q2; [exact Hts | lia | lia].
     + lia.
   - exfalso. apply (proj1 Hts); exact Hz0.
   - (* 0<=vy, 0<vz : Q1 *)
-    apply in_join4_l. apply fdiv_pos_z_soundness.
+    apply in_join4_l. apply fdiv_pos_z_zitv3_soundness.
     + apply contains_pos_y; [exact Hin | lia].
-    + apply tsol_q1; [exact Hts | lia | lia].
+    + apply tdiv_rel_q1; [exact Hts | lia | lia].
     + lia.
   - (* vy<0, vz<0 : Q4 *)
     apply in_join4_r. apply in_join4_r. apply in_join4_r.
     replace vy with (- - vy) by lia. replace vz with (- - vz) by lia.
-    apply in_mir_yz. apply fdiv_pos_z_soundness.
+    apply in_mir_yz. apply fdiv_pos_z_zitv3_soundness.
     + apply in_mir_yz. apply contains_neg_y; [exact Hin | lia].
-    + apply tsol_q4; [exact Hts | lia | lia].
+    + apply tdiv_rel_q4; [exact Hts | lia | lia].
     + lia.
   - exfalso. apply (proj1 Hts); exact Hz0.
   - (* vy<0, 0<vz : Q3 *)
     apply in_join4_r. apply in_join4_r. apply in_join4_l.
     replace vx with (- - vx) by lia. replace vy with (- - vy) by lia.
-    apply in_neg_xy. apply fdiv_pos_z_soundness.
+    apply in_neg_xy. apply fdiv_pos_z_zitv3_soundness.
     + apply in_neg_xy. apply contains_neg_y; [exact Hin | lia].
-    + apply tsol_q3; [exact Hts | lia | lia].
+    + apply tdiv_rel_q3; [exact Hts | lia | lia].
     + lia.
 Qed.
 
@@ -2322,7 +2312,7 @@ Qed.
 (** ** (D) 4-way join lub combinator                                   *)
 (* ================================================================== *)
 
-Lemma join4_4_sle : forall a b c d t,
+Lemma geq_cw_implies_geq_join : forall a b c d t,
   (is_not_bot_zitv3 a = true -> leq_zitv3 a t) -> (is_not_bot_zitv3 b = true -> leq_zitv3 b t) ->
   (is_not_bot_zitv3 c = true -> leq_zitv3 c t) -> (is_not_bot_zitv3 d = true -> leq_zitv3 d t) ->
   is_not_bot_zitv3 (join_zitv3 a (join_zitv3 b (join_zitv3 c d))) = true ->
@@ -2338,19 +2328,19 @@ Qed.
 (** ** (E) Best abstract transformer on feasible inputs                *)
 (* ================================================================== *)
 
-Theorem ztdivq_best_feasible : forall s,
-  feasible tsol s -> forall t, preserve_solutions tsol s t -> leq_zitv3 (ztdivq s) t.
+Theorem tdiv_zitv3_best_feasible : forall s,
+  feasible tdiv_rel s -> forall t, preserve_solutions tdiv_rel s t -> leq_zitv3 (tdiv_zitv3 s) t.
 Proof.
   intros s Hf t Hct.
   destruct Hf as (fx & fy & fz & Hfin & Hfts).
   assert (Es : is_not_bot_zitv3 s = true) by (eapply nonempty_is_not_bot_zitv3; exact Hfin).
   destruct (not_bot_zitv3_distributes_cw s Es) as (Esx & Esy & Esz).
-  assert (HneOut : is_not_bot_zitv3 (ztdivq s) = true)
-    by (eapply nonempty_is_not_bot_zitv3; apply ztdivq_soundness; [exact Hfin | exact Hfts]).
-  unfold ztdivq in *. rewrite Es in *. cbn [negb] in *.
-  apply join4_4_sle; [ | | | | exact HneOut ].
+  assert (HneOut : is_not_bot_zitv3 (tdiv_zitv3 s) = true)
+    by (eapply nonempty_is_not_bot_zitv3; apply tdiv_zitv3_soundness; [exact Hfin | exact Hfts]).
+  unfold tdiv_zitv3 in *. rewrite Es in *. cbn [negb] in *.
+  apply geq_cw_implies_geq_join; [ | | | | exact HneOut ].
   - (* Q1 *)
-    intro HneQ. destruct (zfdiv_pos3_ne_input _ HneQ) as [Hsx Hsy].
+    intro HneQ. destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ HneQ) as [Hsx Hsy].
     apply fdiv_pos_z_zitv3_completeness.
     + apply (fdiv_pos_z_zitv3_not_bot_feasible (pos_y s) Hsx Hsy HneQ).
     + intros a0 b0 c0 Hinp Hsol Hc1.
@@ -2360,7 +2350,7 @@ Proof.
     intro HneQ. rewrite <- (mir_xz_invol t).
     apply (proj2 (sle3_mir_xz (fdiv_pos_z_zitv3 (neg_xz_zitv3 (pos_y s))) (neg_xz_zitv3 t))).
     rewrite ne_mir_xz in HneQ.
-    destruct (zfdiv_pos3_ne_input _ HneQ) as [Hsx Hsy].
+    destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ HneQ) as [Hsx Hsy].
     apply fdiv_pos_z_zitv3_completeness.
     + apply (fdiv_pos_z_zitv3_not_bot_feasible (neg_xz_zitv3 (pos_y s)) Hsx Hsy HneQ).
     + intros a0 b0 c0 Hinp Hsol Hc1.
@@ -2374,7 +2364,7 @@ Proof.
     intro HneQ. rewrite <- (neg_xy_invol t).
     apply (proj2 (leq_zitv3_neg_xy (fdiv_pos_z_zitv3 (neg_xy_zitv3 (neg_y s))) (neg_xy_zitv3 t))).
     rewrite not_bot_neg_xy in HneQ.
-    destruct (zfdiv_pos3_ne_input _ HneQ) as [Hsx Hsy].
+    destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ HneQ) as [Hsx Hsy].
     apply fdiv_pos_z_zitv3_completeness.
     + apply (fdiv_pos_z_zitv3_not_bot_feasible (neg_xy_zitv3 (neg_y s)) Hsx Hsy HneQ).
     + intros a0 b0 c0 Hinp Hsol Hc1.
@@ -2388,7 +2378,7 @@ Proof.
     intro HneQ. rewrite <- (mir_yz_invol t).
     apply (proj2 (sle3_mir_yz (fdiv_pos_z_zitv3 (neg_yz_zitv3 (neg_y s))) (neg_yz_zitv3 t))).
     rewrite ne_mir_yz in HneQ.
-    destruct (zfdiv_pos3_ne_input _ HneQ) as [Hsx Hsy].
+    destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ HneQ) as [Hsx Hsy].
     apply fdiv_pos_z_zitv3_completeness.
     + apply (fdiv_pos_z_zitv3_not_bot_feasible (neg_yz_zitv3 (neg_y s)) Hsx Hsy HneQ).
     + intros a0 b0 c0 Hinp Hsol Hc1.
@@ -2404,43 +2394,34 @@ Qed.
 (** ** (F) Non-empty output implies feasibility                        *)
 (* ================================================================== *)
 
-Lemma ne_join4_split : forall p q,
-  is_not_bot_zitv3 (join_zitv3 p q) = true -> is_not_bot_zitv3 p = true \/ is_not_bot_zitv3 q = true.
+Theorem tdiv_zitv3_not_bot_feasible : forall s,
+  is_not_bot_zitv3 (tdiv_zitv3 s) = true -> feasible tdiv_rel s.
 Proof.
-  intros p q H. unfold join_zitv3 in H.
-  destruct (negb (is_not_bot_zitv3 p)) eqn:Ep.
-  - right; exact H.
-  - left. destruct (is_not_bot_zitv3 p); [reflexivity | discriminate Ep].
-Qed.
-
-Theorem ztdivq_ne_feasible : forall s,
-  is_not_bot_zitv3 (ztdivq s) = true -> feasible tsol s.
-Proof.
-  intros s Hne. unfold ztdivq in Hne.
+  intros s Hne. unfold tdiv_zitv3 in Hne.
   destruct (is_not_bot_zitv3 s) eqn:Es; [ | cbn in Hne; congruence ].
   cbn [negb] in Hne.
   destruct (not_bot_zitv3_distributes_cw s Es) as (Esx & Esy & Esz).
-  destruct (ne_join4_split _ _ Hne) as [H1 | Hne2].
+  destruct (join_no_bot_implies_one_no_bot _ _ Hne) as [H1 | Hne2].
   - (* Q1 *)
-    destruct (zfdiv_pos3_ne_input _ H1) as [Hsx Hsy].
+    destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ H1) as [Hsx Hsy].
     destruct (fdiv_pos_z_zitv3_not_bot_feasible (pos_y s) Hsx Hsy H1)
       as (vx & vy & vz & Hin & Hsol & Hvz).
     destruct (contains_pos_y_inv _ _ _ _ Hin) as [Hins Hb].
     exists vx, vy, vz. split; [exact Hins | apply sol_q1; [exact Hsol | exact Hb | exact Hvz]].
-  - destruct (ne_join4_split _ _ Hne2) as [H2 | Hne3].
+  - destruct (join_no_bot_implies_one_no_bot _ _ Hne2) as [H2 | Hne3].
     + (* Q2 *)
       rewrite ne_mir_xz in H2.
-      destruct (zfdiv_pos3_ne_input _ H2) as [Hsx Hsy].
+      destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ H2) as [Hsx Hsy].
       destruct (fdiv_pos_z_zitv3_not_bot_feasible (neg_xz_zitv3 (pos_y s)) Hsx Hsy H2)
         as (vx & vy & vz & Hin & Hsol & Hvz).
       pose proof (in_mir_xz_inv _ _ _ _ Hin) as Hins0.
       destruct (contains_pos_y_inv _ _ _ _ Hins0) as [Hins Hb].
       exists (- vx), vy, (- vz).
       split; [exact Hins | apply sol_q2; [exact Hsol | exact Hb | exact Hvz]].
-    + destruct (ne_join4_split _ _ Hne3) as [H3 | H4].
+    + destruct (join_no_bot_implies_one_no_bot _ _ Hne3) as [H3 | H4].
       * (* Q3 *)
         rewrite not_bot_neg_xy in H3.
-        destruct (zfdiv_pos3_ne_input _ H3) as [Hsx Hsy].
+        destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ H3) as [Hsx Hsy].
         destruct (fdiv_pos_z_zitv3_not_bot_feasible (neg_xy_zitv3 (neg_y s)) Hsx Hsy H3)
           as (vx & vy & vz & Hin & Hsol & Hvz).
         pose proof (in_neg_xy_inv _ _ _ _ Hin) as Hins0.
@@ -2449,7 +2430,7 @@ Proof.
         split; [exact Hins | apply sol_q3; [exact Hsol | lia | exact Hvz]].
       * (* Q4 *)
         rewrite ne_mir_yz in H4.
-        destruct (zfdiv_pos3_ne_input _ H4) as [Hsx Hsy].
+        destruct (fdiv_zitv3_pos_z_not_bot_implies_not_bot_cw _ H4) as [Hsx Hsy].
         destruct (fdiv_pos_z_zitv3_not_bot_feasible (neg_yz_zitv3 (neg_y s)) Hsx Hsy H4)
           as (vx & vy & vz & Hin & Hsol & Hvz).
         pose proof (in_mir_yz_inv _ _ _ _ Hin) as Hins0.
@@ -2462,35 +2443,35 @@ Qed.
 (** ** (G) Completeness (unconditional, quotient order)                *)
 (* ================================================================== *)
 
-Theorem ztdivq_complete : forall s t, preserve_solutions tsol s t -> leq_zitv3 (ztdivq s) t.
+Theorem tdiv_zitv3_completeness : forall s t, preserve_solutions tdiv_rel s t -> leq_zitv3 (tdiv_zitv3 s) t.
 Proof.
-  intros s t Hct. destruct (is_not_bot_zitv3 (ztdivq s)) eqn:E;
-    [ exact (ztdivq_best_feasible s (ztdivq_ne_feasible s E) t Hct)
+  intros s t Hct. destruct (is_not_bot_zitv3 (tdiv_zitv3 s)) eqn:E;
+    [ exact (tdiv_zitv3_best_feasible s (tdiv_zitv3_not_bot_feasible s E) t Hct)
     | apply bot_is_leq_all_zitv3; exact E ].
 Qed.
 
-(* [ztdivq] is a CLOSURE OPERATOR (reductive, monotone, idempotent up to ~):
+(* [tdiv_zitv3] is a CLOSURE OPERATOR (reductive, monotone, idempotent up to ~):
    for free from soundness + completeness + ne-feasibility via [closure_laws]. *)
-Theorem ztdivq_reductive : forall s, leq_zitv3 (ztdivq s) s.
-Proof. exact (proj1 (closure_laws tsol ztdivq ztdivq_soundness (fun s _ => ztdivq_complete s) ztdivq_ne_feasible)). Qed.
-Theorem ztdivq_monotone : forall s t, leq_zitv3 s t -> leq_zitv3 (ztdivq s) (ztdivq t).
-Proof. exact (proj1 (proj2 (closure_laws tsol ztdivq ztdivq_soundness (fun s _ => ztdivq_complete s) ztdivq_ne_feasible))). Qed.
-Theorem ztdivq_idempotent : forall s,
-  leq_zitv3 (ztdivq (ztdivq s)) (ztdivq s) /\ leq_zitv3 (ztdivq s) (ztdivq (ztdivq s)).
-Proof. exact (proj2 (proj2 (closure_laws tsol ztdivq ztdivq_soundness (fun s _ => ztdivq_complete s) ztdivq_ne_feasible))). Qed.
+Theorem tdiv_zitv3_reductive : forall s, leq_zitv3 (tdiv_zitv3 s) s.
+Proof. exact (proj1 (closure_laws tdiv_rel tdiv_zitv3 tdiv_zitv3_soundness (fun s _ => tdiv_zitv3_completeness s) tdiv_zitv3_not_bot_feasible)). Qed.
+Theorem tdiv_zitv3_monotone : forall s t, leq_zitv3 s t -> leq_zitv3 (tdiv_zitv3 s) (tdiv_zitv3 t).
+Proof. exact (proj1 (proj2 (closure_laws tdiv_rel tdiv_zitv3 tdiv_zitv3_soundness (fun s _ => tdiv_zitv3_completeness s) tdiv_zitv3_not_bot_feasible))). Qed.
+Theorem tdiv_zitv3_idempotent : forall s,
+  leq_zitv3 (tdiv_zitv3 (tdiv_zitv3 s)) (tdiv_zitv3 s) /\ leq_zitv3 (tdiv_zitv3 s) (tdiv_zitv3 (tdiv_zitv3 s)).
+Proof. exact (proj2 (proj2 (closure_laws tdiv_rel tdiv_zitv3 tdiv_zitv3_soundness (fun s _ => tdiv_zitv3_completeness s) tdiv_zitv3_not_bot_feasible))). Qed.
 
 (* Complete on singleton: on a fully-fixed store, a non-empty output forces the
-   assignment to be an actual solution.  Immediate from [ztdivq_ne_feasible]
-   (ztdivq is the best propagator): a non-empty output makes the slice feasible,
+   assignment to be an actual solution.  Immediate from [tdiv_zitv3_not_bot_feasible]
+   (tdiv_zitv3 is the best propagator): a non-empty output makes the slice feasible,
    and on a singleton the only feasible point is (vx,vy,vz) itself. *)
-Theorem ztdivq_singleton_complete : forall s vx vy vz,
+Theorem tdiv_zitv3_singleton_complete : forall s vx vy vz,
   x s = ZItv (Fin vx) (Fin vx) ->
   y s = ZItv (Fin vy) (Fin vy) ->
   z s = ZItv (Fin vz) (Fin vz) ->
-  is_not_bot_zitv3 (ztdivq s) = true -> tsol vx vy vz.
+  is_not_bot_zitv3 (tdiv_zitv3 s) = true -> tdiv_rel vx vy vz.
 Proof.
   intros s vx vy vz Hx Hy Hz Hne.
-  destruct (ztdivq_ne_feasible s Hne) as (vx' & vy' & vz' & Hin & Hts).
+  destruct (tdiv_zitv3_not_bot_feasible s Hne) as (vx' & vy' & vz' & Hin & Hts).
   destruct Hin as (Hmx & Hmy & Hmz).
   rewrite Hx in Hmx; rewrite Hy in Hmy; rewrite Hz in Hmz.
   unfold in_zitv in Hmx, Hmy, Hmz; cbn in Hmx, Hmy, Hmz.

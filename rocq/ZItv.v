@@ -25,6 +25,19 @@ Definition in_zitv (i : zitv) (v : Z) : Prop :=
 (* [l, u] := [-u, -l] (bot maps to bot). *)
 Definition neg_zitv (i : zitv) : zitv := ZItv (neg_zinf (ub i)) (neg_zinf (lb i)).
 
+(* neq_zero: shave a zero bound *)
+Definition neq0_zitv (i : zitv) : zitv :=
+  ZItv (if iszero_zinf (lb i) then Fin 1 else lb i)
+       (if iszero_zinf (ub i) then Fin (-1) else ub i).
+
+(* 4-corner product hull *)
+Definition mul_zitv (iy iz : zitv) : zitv :=
+  ZItv (min_zinf (min_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
+             (min_zinf (mul_zinf (ub iy) (lb iz)) (mul_zinf (ub iy) (ub iz))))
+       (max_zinf (max_zinf (mul_zinf (lb iy) (lb iz)) (mul_zinf (lb iy) (ub iz)))
+             (max_zinf (mul_zinf (ub iy) (lb iz)) (mul_zinf (ub iy) (ub iz)))).
+
+
 (* Test for the bottom equivalence class (non-emptiness test of the interval) (l > u \/ l = +oo \/ u = -oo) *)
 Definition isbot_zitv (i : zitv) : bool :=
   match lb i, ub i with

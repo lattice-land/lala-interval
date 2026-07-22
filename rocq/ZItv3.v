@@ -62,6 +62,20 @@ Definition neg_xy_zitv3 (s : zitv3) : zitv3 :=
 Definition neg_xz_zitv3 (s : zitv3) : zitv3 :=
   ZItv3 (neg_zitv (x s)) (y s) (neg_zitv (z s)).
 
+Definition pos_y (s : zitv3) : zitv3 :=
+  ZItv3 (x s) (meet_zitv (y s) (ZItv (Fin 0) Pinf)) (z s).
+Definition neg_y (s : zitv3) : zitv3 :=
+  ZItv3 (x s) (meet_zitv (y s) (ZItv Ninf (Fin 0))) (z s).
+
+Lemma join_no_bot_implies_one_no_bot : forall p q,
+  is_not_bot_zitv3 (join_zitv3 p q) = true -> is_not_bot_zitv3 p = true \/ is_not_bot_zitv3 q = true.
+Proof.
+  intros p q H. unfold join_zitv3 in H.
+  destruct (negb (is_not_bot_zitv3 p)) eqn:Ep.
+  - right; exact H.
+  - left. destruct (is_not_bot_zitv3 p); [reflexivity | discriminate Ep].
+Qed.
+
 (* TODO: following lemmas are not fully renamed yet. *)
 
 (* the NAIVE join is a LUB only when both inputs are non-empty (the quotient

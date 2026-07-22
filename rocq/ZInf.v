@@ -127,6 +127,17 @@ Definition cdiv_zinf (n m : zinf) : zinf :=
              end
   end.
 
+Definition tdiv_zinf (n m : zinf) : zinf :=
+  match m with
+  | Pinf | Ninf => Fin 0
+  | Fin w => match n with
+             | Fin v => Fin (Z.quot v w)
+             | Pinf => if 0 <? w then Pinf else Ninf
+             | Ninf => if 0 <? w then Ninf else Pinf
+             end
+  end.
+
+
 (* sign tests on zinf *)
 
 Definition ispos_zinf (a : zinf) : bool :=
@@ -247,3 +258,25 @@ Proof. intros [x| |] [z| |] v H; cbn in *; try easy; lia. Qed.
 Lemma sub_rearr_c : forall lx hz v, leq_zinf (sub_zinf lx hz) (Fin v) -> leq_zinf (sub_zinf lx (Fin v)) hz.
 Proof. intros [x| |] [z| |] v H; cbn in *; try easy; lia. Qed.
 
+(* the 4-corner min is below any element that one corner is below *)
+Lemma leq_zinf_min_zinf4 : forall m1 m2 m3 m4 t,
+  leq_zinf m1 t \/ leq_zinf m2 t \/ leq_zinf m3 t \/ leq_zinf m4 t ->
+  leq_zinf (min_zinf (min_zinf m1 m2) (min_zinf m3 m4)) t.
+Proof.
+  intros m1 m2 m3 m4 t [H|[H|[H|H]]].
+  - eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. exact H.
+  - eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. eapply leq_zinf_trans; [apply leq_zinf_min_zinf_r|]. exact H.
+  - eapply leq_zinf_trans; [apply leq_zinf_min_zinf_r|]. eapply leq_zinf_trans; [apply leq_zinf_min_zinf_l|]. exact H.
+  - eapply leq_zinf_trans; [apply leq_zinf_min_zinf_r|]. eapply leq_zinf_trans; [apply leq_zinf_min_zinf_r|]. exact H.
+Qed.
+
+Lemma leq_zinf_max_zinf4 : forall m1 m2 m3 m4 t,
+  leq_zinf t m1 \/ leq_zinf t m2 \/ leq_zinf t m3 \/ leq_zinf t m4 ->
+  leq_zinf t (max_zinf (max_zinf m1 m2) (max_zinf m3 m4)).
+Proof.
+  intros m1 m2 m3 m4 t [H|[H|[H|H]]].
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply leq_zinf_max_zinf_l|]. apply leq_zinf_max_zinf_l.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply leq_zinf_max_zinf_r|]. apply leq_zinf_max_zinf_l.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply leq_zinf_max_zinf_l|]. apply leq_zinf_max_zinf_r.
+  - eapply leq_zinf_trans; [exact H|]. eapply leq_zinf_trans; [apply leq_zinf_max_zinf_r|]. apply leq_zinf_max_zinf_r.
+Qed.

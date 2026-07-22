@@ -11,7 +11,7 @@
     ternarization identity that justifies the composed part. *)
 
 From Stdlib Require Import ZArith Lia.
-From LalaInterval Require Import ZItv3 AddZItv3 zmul.
+From LalaInterval Require Import ZItv3 AddZItv3 MulZItv3.
 Open Scope Z_scope.
 
 (* truncated-modulus solution relation: x = y rem z with z <> 0. *)
@@ -50,12 +50,12 @@ Qed.
 (* ------------------------------------------------------------------ *)
 
 (* Upper bound on |v| for any v in an interval, over zinf (infinity-aware). *)
-Definition zabs_ub (i : zitv) : zinf := max_zinf (isneg_zinf3 (lb i)) (ub i).
+Definition zabs_ub (i : zitv) : zinf := max_zinf (neg_zinf (lb i)) (ub i).
 
 Lemma zabs_ub_sound : forall i v, in_zitv i v -> leq_zinf (Fin (Z.abs v)) (zabs_ub i).
 Proof.
   intros i v [Hlo Hhi]. unfold zabs_ub.
-  assert (E : Fin (Z.abs v) = max_zinf (isneg_zinf3 (Fin v)) (Fin v)) by (cbn; f_equal; lia).
+  assert (E : Fin (Z.abs v) = max_zinf (neg_zinf (Fin v)) (Fin v)) by (cbn; f_equal; lia).
   rewrite E. apply max_zinf_monotone; [ apply isneg_zinf3_anti; exact Hlo | exact Hhi ].
 Qed.
 
@@ -64,7 +64,7 @@ Qed.
    combining the sign bound (x has y's sign, |x| <= |y|) with the magnitude
    bound (|x| <= |z| - 1). *)
 Definition tmod_env (sy sz : zitv) : zitv :=
-  ZItv (max_zinf (min_zinf (lb sy) (Fin 0)) (add_zinf (isneg_zinf3 (zabs_ub sz)) (Fin 1)))
+  ZItv (max_zinf (min_zinf (lb sy) (Fin 0)) (add_zinf (neg_zinf (zabs_ub sz)) (Fin 1)))
        (min_zinf (max_zinf (ub sy) (Fin 0)) (sub_zinf (zabs_ub sz) (Fin 1))).
 
 Lemma contains_tmod_env : forall sy sz vy vz,
@@ -78,9 +78,9 @@ Proof.
     - cbn; lia.
     - assert (E : Fin (Z.abs vz - 1) = sub_zinf (Fin (Z.abs vz)) (Fin 1)) by (cbn; f_equal; lia).
       rewrite E. apply sub_zinf_monotone; [ exact Hzabs | apply leq_zinf_refl ]. }
-  assert (Hmagl : leq_zinf (add_zinf (isneg_zinf3 (zabs_ub sz)) (Fin 1)) (Fin (Z.rem vy vz))).
+  assert (Hmagl : leq_zinf (add_zinf (neg_zinf (zabs_ub sz)) (Fin 1)) (Fin (Z.rem vy vz))).
   { apply (leq_zinf_trans _ (Fin (- Z.abs vz + 1))).
-    - assert (E : Fin (- Z.abs vz + 1) = add_zinf (isneg_zinf3 (Fin (Z.abs vz))) (Fin 1)) by (cbn; f_equal; lia).
+    - assert (E : Fin (- Z.abs vz + 1) = add_zinf (neg_zinf (Fin (Z.abs vz))) (Fin 1)) by (cbn; f_equal; lia).
       rewrite E. apply add_zinf_monotone; [ apply isneg_zinf3_anti; exact Hzabs | apply leq_zinf_refl ].
     - cbn; lia. }
   split.
@@ -105,9 +105,9 @@ Qed.
 (* ------------------------------------------------------------------ *)
 
 (* Direct modulus narrowing: clip x to the remainder envelope and force z <> 0
-   (via [neqz3], shaving a 0-bound). y is untouched by the direct step. *)
+   (via [neq0_zitv], shaving a 0-bound). y is untouched by the direct step. *)
 Definition ztmod (s : zitv3) : zitv3 :=
-  ZItv3 (meet_zitv (x s) (tmod_env (y s) (z s))) (y s) (neqz3 (z s)).
+  ZItv3 (meet_zitv (x s) (tmod_env (y s) (z s))) (y s) (neq0_zitv (z s)).
 
 Theorem ztmod_soundness : forall s vx vy vz,
   in_zitv3 s vx vy vz -> tmsol vx vy vz -> in_zitv3 (ztmod s) vx vy vz.
@@ -117,7 +117,7 @@ Proof.
   split; [ | split ].
   - apply contains_inter; [ exact Hx | apply contains_tmod_env; assumption ].
   - exact Hy.
-  - apply neqz3_sound; [ exact Hz | exact Hnz ].
+  - apply neq0_zitv3_soundness; [ exact Hz | exact Hnz ].
 Qed.
 
 (* The identity behind the C++ ternarization: introducing q = tdiv(y,z),
