@@ -4,6 +4,13 @@ This mechanization was obtained with the help of Claude Opus 4.8.
 We performed incrementally by manually inspecting the definitions.
 We also edited deleted useless lemmas, renamed definitions and lemmas, grouped into distinct files.
 
+## Table of Claims
+
+| Claim | Paper claim   | Rocq statement |
+| ----- | ------------- | ------------- |
+| 1 | $\mathcal{S}\llbracket c_1 \rrbracket \circ \ldots \circ \mathcal{S}\llbracket c_n \rrbracket$ is a closure operator. | `Theorem compose_closure_operator` |
+| 2 | | |
+
 ## Concrete.v
 
 The concrete domain is the set of solutions of a constraint network, that is, $\mathcal{P}(X \to \mathbb{Z})$ where $X$ is a set of variables.

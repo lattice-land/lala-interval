@@ -358,7 +358,7 @@ void benchmark(const char* itv_name, bool csv) {
   // printf("--\n");
   // exit(1);
 
-  constexpr bool boundr = false;
+  constexpr bool boundr = true;
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
     // {ADD, P},
     // {SUB, P},
@@ -366,17 +366,17 @@ void benchmark(const char* itv_name, bool csv) {
     // {MUL, FDP},
     // {MULDIV, FP},
     // {MUL, FP},
-    {TDIV, P},
+    {TDIV, FP},
+    {FDIV, FP},
+    {CDIV, FP},
+    {EDIV, FP},
+    {TDIV, FDP},
     // {FDIV, P},
-    // {CDIV, P},
-    // {EDIV, P},
-    // {TDIV, FDP},
-    // {FDIV, P},
-    // {FDIV, FDP},
+    {FDIV, FDP},
     // {CDIV, FP},
-    // {CDIV, FDP},
+    {CDIV, FDP},
     // {EDIV, FP},
-    // {EDIV, FDP},
+    {EDIV, FDP},
     // {FDIV, DP},
     // {FDIV, DP},
     // {CDIV, DP},
@@ -431,18 +431,19 @@ void benchmark(const char* itv_name, bool csv) {
             boundr ? boundr::ask::zmul<FInterval<double>, value_type> : ask::zmul<value_type>); break;
           case MULDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             [](auto& x, auto& y, auto& z) {
+              x.mul(y,z);
               if(!x.contains(0) || !z.contains(0)) {
-                tell::zfdiv<value_type>(y, x, z);
-                tell::zcdiv<value_type>(y, x, z);
+                tell::zfdiv_4<value_type>(y, x, z);
+                tell::zcdiv_4<value_type>(y, x, z);
               }
               if(!x.contains(0) || !y.contains(0)) {
-                tell::zfdiv<value_type>(z, x, y);
-                tell::zcdiv<value_type>(z, x, y);
+                tell::zfdiv_4<value_type>(z, x, y);
+                tell::zcdiv_4<value_type>(z, x, y);
               }
             },
             ask::zmul<value_type>); break;
           case FDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
-            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv_pos<value_type>,
+            boundr ? boundr::tell::zfdiv<FInterval<double>, value_type> : tell::zfdiv_4<value_type>,
             ask::zfdiv<value_type>); break;
           case CDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::zcdiv<FInterval<double>, value_type> : tell::zcdiv_4<value_type>,
