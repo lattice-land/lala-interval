@@ -18,7 +18,7 @@
 #include "lala/finterval.hpp"
 #include "lala/zf_bridge.hpp"
 
-enum Sig { ADD, SUB, MULDIV, MUL, TDIV, FDIV, CDIV, EDIV, MIN, MAX, RLEQ, REQ };
+enum Sig { ADD, SUB, MULDIV, MUL, TDIV, TDIV_SIMPL, FDIV, CDIV, EDIV, MIN, MAX, RLEQ, REQ };
 
 using namespace lala;
 
@@ -29,6 +29,7 @@ value_t op(value_t a, Sig op, value_t b) {
     case SUB: return a - b;
     case MULDIV:
     case MUL: return a * b;
+    case TDIV_SIMPL:
     case TDIV: return battery::tdiv(a, b);
     case CDIV: return battery::cdiv(a, b);
     case FDIV: return battery::fdiv(a, b);
@@ -60,7 +61,7 @@ size_t gfp(Itv& x2, Itv& y2, Itv& z2, Prop p) {
 /* CONCRETE PROPAGATION. */
 
 bool is_div(Sig sig) {
-  return sig == TDIV || sig == CDIV || sig == FDIV || sig == EDIV;
+  return sig == TDIV || sig == TDIV_SIMPL || sig == CDIV || sig == FDIV || sig == EDIV;
 }
 
 template <class Itv>
@@ -227,9 +228,9 @@ int propagate(Sig sig, Itv x, Itv y, Itv z,
       stats.not_best[1] += cy != y ? 1 : 0;
       stats.not_best[2] += cz != z ? 1 : 0;
       if(cx != x || cy != y || cz != z) {
-        // Check completeness on singleton
+        // Check "best on assignment" property.
         if(x.is_singleton() && y.is_singleton() && z.is_singleton()) {
-          std::cout << "Incomplete propagator on singleton for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
+          std::cout << "Incomplete propagator on assignment for x=" << x2 << " y=" << y2 << " z=" << z2 << std::endl;
           std::cout << "\tConcrete x=" << cx << " y=" << cy << " z=" << cz << std::endl;
           std::cout << "\tAbstract x=" << x << " y=" << y << " z=" << z << std::endl;
           exit(1);
@@ -273,6 +274,7 @@ const char* sig_to_string(Sig sig) {
     case FDIV: return "FDIV";
     case CDIV: return "CDIV";
     case TDIV: return "TDIV";
+    case TDIV_SIMPL: return "TDIV_SIMPL";
     case EDIV: return "EDIV";
     case MIN: return "MIN";
     case MAX: return "MAX";
@@ -358,25 +360,24 @@ void benchmark(const char* itv_name, bool csv) {
   // printf("--\n");
   // exit(1);
 
-  constexpr bool boundr = true;
+  constexpr bool boundr = false;
   std::vector<std::tuple<Sig, PropKind>> prop_kinds = {
-    // {ADD, P},
-    // {SUB, P},
+    {ADD, P},
+    {SUB, P},
     // {MUL, FP},
     // {MUL, FDP},
-    // {MULDIV, FP},
-    // {MUL, FP},
-    {TDIV, FP},
-    {FDIV, FP},
-    {CDIV, FP},
-    {EDIV, FP},
-    {TDIV, FDP},
-    // {FDIV, P},
-    {FDIV, FDP},
+    {MULDIV, FP},
+    {MUL, FP},
+    // {TDIV, FP},
+    // {FDIV, FP},
     // {CDIV, FP},
-    {CDIV, FDP},
     // {EDIV, FP},
-    {EDIV, FDP},
+    // {TDIV, FDP},
+    {FDIV, P},
+    {CDIV, P},
+    {TDIV, P},
+    {TDIV_SIMPL, P},
+    {EDIV, P},
     // {FDIV, DP},
     // {FDIV, DP},
     // {CDIV, DP},
@@ -404,7 +405,7 @@ void benchmark(const char* itv_name, bool csv) {
       int xub = static_cast<int>(x.ub());
       int yub = static_cast<int>(y.ub());
 
-      // #pragma omp parallel for collapse(4) schedule(dynamic)
+      #pragma omp parallel for collapse(4) schedule(dynamic)
       for(int xl = x.lb(); xl <= xub; ++xl) {
       for(int xu = x.lb(); xu <= xub; ++xu) {
       for(int yl = y.lb(); yl <= yub; ++yl) {
@@ -451,6 +452,9 @@ void benchmark(const char* itv_name, bool csv) {
           case TDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::ztdiv<FInterval<double>, value_type> : tell::ztdiv_5<value_type>,
             ask::ztdiv<value_type>); break;
+          case TDIV_SIMPL: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
+            boundr ? boundr::tell::ztdiv<FInterval<double>, value_type> : tell::ztdiv_4<value_type>,
+            ask::ztdiv<value_type>); break;
           case EDIV: r = wrap_propagate(prop_kind, sig, Itv(xl, xu), Itv(yl, yu), Itv(zl, zu), stats_list[omp_get_thread_num()],
             boundr ? boundr::tell::zediv<FInterval<double>, value_type> : tell::zediv_4<value_type>,
             ask::zediv<value_type>); break;
@@ -488,7 +492,7 @@ void benchmark(const char* itv_name, bool csv) {
       }
       else {
         printf("%s %s (%s): ", itv_name, sig_to_string(sig), prop_kind_to_string(prop_kind));
-        printf("Sound and complete on singleton.\n");
+        printf("Sound and best on assignment.\n");
         printf("Not the best on %zu examples for %zu tested (%.2f%%).\n", not_best, total, 100.0 * (double(not_best) / double(total)));
         printf("The best on %zu examples for %zu tested (%.2f%%).\n", total-not_best, total, 100.0 * (double(total-not_best) / double(total)));
         stats.print(total);
