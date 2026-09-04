@@ -21,13 +21,10 @@ template<class VT>
 CUDA INLINE constexpr void zfdiv_fast2(ZInterval<VT,battery::local_memory>& x, ZInterval<VT,battery::local_memory>& y, ZInterval<VT,battery::local_memory>& z);
 
 template<class VT>
-CUDA INLINE constexpr void zfdiv_fast3(ZInterval<VT,battery::local_memory>& x, ZInterval<VT,battery::local_memory>& y, ZInterval<VT,battery::local_memory>& z);
+CUDA INLINE void zfdiv2(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
 
 template<class VT>
-CUDA INLINE constexpr void zfdiv2(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
-
-template<class VT>
-CUDA INLINE constexpr void zfdiv3(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
+CUDA INLINE void zfdiv3(ZInterval<VT, battery::local_memory>& x, ZInterval<VT, battery::local_memory>& y, ZInterval<VT, battery::local_memory>& z);
 }
 template <class VT, class Mem = battery::local_memory>
 class ZInterval {
@@ -46,13 +43,10 @@ public:
   friend CUDA INLINE constexpr void tell::zfdiv_fast2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
 
   template<class VT2>
-  friend CUDA INLINE constexpr void tell::zfdiv_fast3(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
+  friend CUDA INLINE void tell::zfdiv2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
 
   template<class VT2>
-  friend CUDA INLINE constexpr void tell::zfdiv2(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
-
-  template<class VT2>
-  friend CUDA INLINE constexpr void tell::zfdiv3(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
+  friend CUDA INLINE void tell::zfdiv3(ZInterval<VT2>& x, ZInterval<VT2>& y, ZInterval<VT2>& z);
 
 
   constexpr static const bool is_totally_ordered = false;
@@ -960,7 +954,7 @@ CUDA INLINE constexpr void zfdiv(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<V
 }
 
 template<class VT>
-CUDA INLINE constexpr void zfdiv2(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE void zfdiv2(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   using battery::fdiv;
   using battery::cdiv;
   using battery::min;
@@ -1039,7 +1033,7 @@ join:
 // limit.  Structure identical to zfdiv2 (band DEN, per-sign branches, join,
 // NUM hull).
 template<class VT>
-CUDA INLINE constexpr void zfdiv3(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
+CUDA INLINE void zfdiv3(ZInterval<VT>& x, ZInterval<VT>& y, ZInterval<VT>& z) {
   using battery::min;
   using battery::max;
 
