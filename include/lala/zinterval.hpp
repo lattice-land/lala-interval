@@ -227,8 +227,8 @@ public:
   // Given the current interval [l,u], it computes `meet([l,u], a - b)`.
   CUDA INLINE constexpr this_type& sub(basic_type a, basic_type b) {
     if(a.is_bot() || b.is_bot()) { return meet_bot(); }
-    if(!a.l.is_top() && !b.l.is_top()) { l.meet(a.l - b.u); }
-    if(!a.u.is_top() && !b.u.is_top()) { u.meet(a.u - b.l); }
+    if(!a.l.is_top() && !b.u.is_top()) { l.meet(a.l - b.u); }
+    if(!a.u.is_top() && !b.l.is_top()) { u.meet(a.u - b.l); }
     return *this;
   }
 
